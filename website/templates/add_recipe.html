@@ -1,0 +1,72 @@
+<!-- add_recipe.html -->
+
+{% extends "base.html" %}
+{% block title %}Add Recipe{% endblock %}
+
+{% block profile %}
+  {% if user.is_authenticated %}
+  <a class="nav-item nav-link" id="profile" href="{{ url_for('views.profile_page') }}">Profile</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="container mt-3">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<h1 align="center">Add a New Recipe</h1>
+
+<div class="container mt-4">
+  <form method="POST">
+    <div class="form-group">
+      <label for="name">Recipe Name *</label>
+      <input type="text" class="form-control" id="name" name="name" required>
+    </div>
+    <div class="form-group">
+      <label for="origin">Origin *</label>
+      <input type="text" class="form-control" id="origin" name="origin" required>
+    </div>
+    <div class="form-group">
+      <label for="difficulty_level">Difficulty Level (1-5)</label>
+      <input type="number" class="form-control" id="difficulty_level" name="difficulty_level" min="1" max="5">
+    </div>
+    <div class="form-group">
+      <label for="ingredients">Ingredients (comma-separated) *</label>
+      <input type="text" class="form-control" id="ingredients" name="ingredients" required>
+    </div>
+    <div class="form-group">
+      <label for="preparation_steps">Preparation Steps (comma-separated) *</label>
+      <input type="text" class="form-control" id="preparation_steps" name="preparation_steps" required>
+    </div>
+    <div class="form-group">
+      <label for="preparation_time">Preparation Time (minutes)</label>
+      <input type="number" class="form-control" id="preparation_time" name="preparation_time">
+    </div>
+    <div class="form-group">
+      <label for="cooking_time">Cooking Time (minutes)</label>
+      <input type="number" class="form-control" id="cooking_time" name="cooking_time">
+    </div>
+    <div class="form-group">
+      <label for="serving">Serving Size</label>
+      <input type="number" class="form-control" id="serving" name="serving">
+    </div>
+    <div class="form-group">
+      <label for="source">Source (Optional)</label>
+      <input type="text" class="form-control" id="source" name="source">
+    </div>
+    <br />
+    <div align="center">
+      <button type="submit" class="btn btn-success">Add Recipe</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

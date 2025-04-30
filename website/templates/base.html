@@ -1,3 +1,5 @@
+<!-- base.html -->
+
 <!DOCTYPE html>
 <html>
   <head>
@@ -14,6 +16,12 @@
       href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"
       crossorigin="anonymous"
     />
+
+    <style>
+      html {
+        scroll-behavior: smooth;
+      }
+    </style>
 
     <title>{% block title %}Home{% endblock %}</title>
   </head>
@@ -37,6 +45,12 @@
           <a class="nav-item nav-link" id="signUp" href="/sign-up">Sign Up</a>
           {% endif %}
         </div>
+
+        <!-- NEW: This block will be filled by specific pages -->
+        <div class="navbar-nav ml-auto">
+          {% block profile %}{% endblock %}
+        </div>
+
       </div>
     </nav>
 

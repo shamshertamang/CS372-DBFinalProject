@@ -1,0 +1,159 @@
+@startuml
+' Hide the circle notation for clarity
+' hide circle
+
+entity "User" as U {
+  *UserID : PK
+  --
+  Username
+  Email
+  PasswordHash
+  DietaryPreferences
+  CookingLevel
+  Allergies
+  SubscriptionStatus
+  ProfilePhoto_Path
+}
+
+entity "Ingredient" as I {
+  *IngredientID : PK
+  --
+  name
+  store
+  unit
+  nutritionalLabel
+  alternativeStores
+  commonSubstitutes
+  seasonalAvailability
+}
+
+entity "Recipe" as R {
+  *RecipeID : PK
+  --
+  Name
+  UserID : FK
+  CollectionID : FK
+  Origin
+  DifficultyLevel
+  ReminderTimes
+  PreparationSteps
+  PreparationTime
+  CookingTime
+  Serving
+  Source
+  Photo : FK
+}
+
+entity "RecipePhoto" as RP{
+    * PhotoID : PK
+    --
+    PhotoID
+    RecipeID
+    filepath
+    Name
+    UploadedAt
+    Limit 4
+}
+
+entity "RecipeCollection" as RC {
+  *CollectionID : PK
+  --
+  Name
+  Description
+  UserID : FK
+}
+
+entity "RecipeIngredient" as RI {
+  *RecipeIngredientID : PK
+  --
+  RecipeID : FK
+  IngredientID : FK
+}
+
+entity "MealPlan" as MP {
+  *MealPlanID : PK
+  --
+  Title
+  UserID : FK
+  StartDate
+  EndDate
+}
+
+entity "Meal" as M {
+  *MealID : PK
+  --
+  UserID : FK
+  MealPlanID : FK
+  MealTime
+  ScheduledDateTime
+}
+
+entity "PantryItem" as PI {
+  *PantryItemID : PK
+  --
+  IngredientID : FK
+  Quantity
+  Unit
+  ExpirationDate
+  AddedDate
+}
+
+entity "ShoppingItem" as SI {
+  *ShoppingItemID : PK
+  --
+  IngredientID : FK
+  Quantity
+  Unit
+  StoreName
+  IsPurchased
+}
+
+entity "CurrentRecipes" as CR {
+  *SourceType : PK
+  *SourceID   : PK
+  --
+  UserID
+}
+
+entity "MealPrepTask (V2)" as MPT {
+  *TaskID     : PK
+  --
+  TaskName
+  TaskDescription
+  TaskType
+  time
+  AssignedTo
+  isCompleted
+  CurrentType : FK
+  CurrentID   : FK
+}
+
+' Relationships
+U ||--o{ R   : creates
+U ||--o{ RP   : uploads
+U ||--o{ MP  : plans
+U ||--o{ M   : prepares
+U ||--o{ RC  : has
+MP ||--o{ M  : includes
+M ||--o{ R   : serves
+R }o--|| RC  : "belongs to"
+R ||--o{ RP   : has_photos
+R ||--o{ RI  : has_ingredient_lines
+RI }o--|| I  : references
+U ||--o{ PI  : owns
+PI }o--|| I  : tracks
+U ||--o{ SI  : lists
+SI }o--|| I  : references
+R ||--o{ CR  : aggregates
+M ||--o{ CR  : aggregates
+MP ||--o{ CR : aggregates
+RC ||--o{ CR : aggregates
+RC ||--o{ R  : has
+CR ||--o{ MPT: assigns
+
+' Supertype / Subtype
+I <|-- PI
+I <|-- SI
+
+
+@enduml

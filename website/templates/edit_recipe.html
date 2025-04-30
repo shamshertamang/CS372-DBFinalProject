@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Edit Recipe{% endblock %}
+
+{% block profile %}
+  {% if user.is_authenticated %}
+  <a class="nav-item nav-link" id="profile" href="{{ url_for('views.profile_page') }}">Profile</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<h1 align="center">Edit Recipe</h1>
+
+<div class="container mt-4">
+  <form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+      <label for="name">Recipe Name *</label>
+      <input type="text" class="form-control" id="name" name="name" value="{{ recipe.name }}" required>
+    </div>
+    <div class="form-group">
+      <label for="origin">Origin *</label>
+      <input type="text" class="form-control" id="origin" name="origin" value="{{ recipe.origin }}" required>
+    </div>
+    <div class="form-group">
+      <label for="difficulty_level">Difficulty Level (1-5)</label>
+      <input type="number" class="form-control" id="difficulty_level" name="difficulty_level" min="1" max="5" value="{{ recipe.difficulty }}">
+    </div>
+    <div class="form-group">
+      <label for="ingredients">Ingredients (comma-separated) *</label>
+      <input type="text" class="form-control" id="ingredients" name="ingredients" value="{{ ingredients | map(attribute='name') | join(', ') }}" required>
+    </div>
+    <div class="form-group">
+      <label for="preparation_steps">Preparation Steps (comma-separated) *</label>
+      <input type="text" class="form-control" id="preparation_steps" name="preparation_steps" value="{{ preparation_steps | join(', ') }}" required>
+    </div>
+    <div class="form-group">
+      <label for="preparation_time">Preparation Time (minutes)</label>
+      <input type="number" class="form-control" id="preparation_time" name="preparation_time" value="{{ recipe.preparation_time }}">
+    </div>
+    <div class="form-group">
+      <label for="cooking_time">Cooking Time (minutes)</label>
+      <input type="number" class="form-control" id="cooking_time" name="cooking_time" value="{{ recipe.cooking_time }}">
+    </div>
+    <div class="form-group">
+      <label for="serving">Serving Size</label>
+      <input type="number" class="form-control" id="serving" name="serving" value="{{ recipe.serving_size }}">
+    </div>
+    <div class="form-group">
+      <label for="source">Source (Optional)</label>
+      <input type="text" class="form-control" id="source" name="source" value="{{ recipe.source }}">
+    </div>
+
+      <!-- new photos upload block -->
+    <div class="form-group">
+      <label for="photos">Upload Recipe Photos (max 4)</label>
+      <input
+        type="file"
+        class="form-control"
+        id="photos"
+        name="photos"
+        accept="image/*"
+        multiple
+        onchange="if(this.files.length>4){ alert('You can only upload up to 4 images.'); this.value=null; }"
+      >
+    </div>
+
+    <br />
+    <div align="center">
+      <button type="submit" class="btn btn-success">Save Changes</button>
+    </div>
+  </form>
+
+  <div align="center" class="mt-3">
+    <a href="{{ url_for('views.view_recipe', recipe_id=recipe.id) }}" class="btn btn-secondary">Cancel</a>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const photoInput = document.getElementById('photos');
+    form.addEventListener('submit', function(e) {
+      const existingCount = {{ recipe.photos|length }};
+      const newCount      = photoInput.files.length;
+      if (existingCount + newCount > 4) {
+        const ok = confirm(
+          `You already have ${existingCount} photo${existingCount===1?'':'s'} saved.\n` +
+          `You just selected ${newCount} more.\n\n` +
+          `Uploading will drop the oldest ${existingCount + newCount - 4} photo` +
+          `${existingCount + newCount - 4===1?'':'s'}.\n\n` +
+          `Continue?`
+        );
+        if (!ok) {
+          e.preventDefault();
+        }
+      }
+    });
+  });
+</script>
+{% endblock %}

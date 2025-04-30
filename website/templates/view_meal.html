@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}View Meal{% endblock %}
+
+{% block profile %}
+  {% if user.is_authenticated %}
+  <a class="nav-item nav-link" id="profile" href="{{ url_for('views.profile_page') }}">Profile</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<h1 align="center">{{ meal.meal_title }}</h1>
+
+<!-- Meal Details Section -->
+<div class="container mt-4">
+  <div class="row">
+    <!-- LEFT column: meal metadata -->
+    <div class="col-md-4 text-left">
+      <p><strong>Meal Time:</strong> {{ meal.meal_time }}</p>
+      <p><strong>Scheduled Date and Time:</strong> {{ meal.scheduled_datetime | datetimeformat }}</p>
+    </div>
+
+    <!-- CENTER column: Recipes -->
+    <div class="col-md-4 text-left">
+      <!-- List of Recipes-->
+      <h3>Recipes Included:</h3>
+      <ol class="mb-0">
+        {% for recipe in meal_recipes %}
+          <li>{{ recipe.name }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+
+      <!-- Aggregated Unique Ingredients -->
+    <div class = "col-md-4 text-left">
+      <h3>Ingredients for this Meal:</h3>
+      <ul>
+        {% for ingredient in unique_ingredients %}
+          <li>{{ ingredient }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+      <!-- Preparation Steps by Recipe -->
+    <h3>Preparation Steps:</h3>
+      <div class="d-flex flex-row flex-wrap">
+        {% for recipe in meal_recipes %}
+        <div class="p-3" style="min-width: 250px;">
+          <h4>{{ recipe.name }}</h4>
+          <ol>
+            {% for step in recipe.preparation_steps %}
+            <li>{{ step }}</li>
+            {% endfor %}
+          </ol>
+        </div>
+        {% endfor %}
+      </div>
+  </div>
+
+  <!-- buttons row -->
+  <div class="d-flex mt-4">
+    <a href="{{ url_for('views.home') }}#meals"
+       class="btn btn-secondary flex-fill mr-2">
+      Back to Meals
+    </a>
+    <a href="{{ url_for('views.edit_meal', meal_id=meal.meal_id) }}"
+       class="btn btn-warning flex-fill">
+      Edit Meal
+    </a>
+  </div>
+</div>
+{% endblock %}

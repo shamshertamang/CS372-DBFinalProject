@@ -1,0 +1,250 @@
+<!-- profile.html -->
+
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+
+{% block content%}
+<div>
+    <div class="card mx-auto shadow" style="max-width: 500px;">
+    <div class="card-body text-center">
+        <h4 class="card-title mb-3">Your Profile</h4>
+        <div class="mb-3">
+            {% if profile_image_data %}
+                <img src="data:image/jpeg;base64,{{ profile_image_data }}"
+                     alt="Profile Picture"
+                     class="rounded-circle img-thumbnail mx-auto d-block"
+                     style="width: 150px; height: 150px; object-fit: cover;">
+            {% else %}
+                <img src="{{ url_for('static', filename='images/default_profile.jpg') }}"
+                     alt="Profile Picture"
+                     class="rounded-circle img-thumbnail mx-auto d-block"
+                     style="width: 150px; height: 150px; object-fit: cover;">
+            {% endif %}
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" id="profileForm">
+            <div class="form-group text-left">
+                <label for="profile_picture"><strong>Upload New Profile Picture</strong></label>
+                <input type="file" class="form-control-file" id="profile_picture" name="profile_picture" accept="image/*" disabled>
+            </div>
+            <div class="form-group text-left">
+                <label for="user_name"><strong>User Name</strong></label>
+                <input type="text" id="user_name" name="user_name" class="form-control" value="{{ user.user_name }}" readonly autocomplete="off">
+            </div>
+
+            <div class="form-group text-left">
+                <label for="email"><strong>Email</strong></label>
+                <input type="email" id="email" name="email" class="form-control" value="{{ user.email }}" readonly>
+            </div>
+
+            <div class="form-group text-left">
+                <label for="dietary_preferences"><strong>Dietary Preferences</strong></label>
+                <input type="text" id="dietary_tags_input" class="form-control" placeholder="Type and press Enter" readonly>
+                <!-- Hidden input that will actually be submitted -->
+                <input type="hidden" id="dietary_preferences" name="dietary_preferences">
+                <small class="form-text text-muted">Press Enter to add each tag</small>
+                <div id="tagsDisplay" class="mt-2"></div>
+            </div>
+
+            <div class="form-group text-left">
+                <label for="cooking_level"><strong>Cooking Level (1 = Beginner, 5 = Expert)</strong></label>
+                    <select id="cooking_level" name="cooking_level" class="form-control" disabled>
+                        <option value="0" {% if user.cooking_level == 0 %}selected{% endif %} disabled>-- Select Level --</option>
+                            {% for level in range(1, 6) %}
+                                <option value="{{ level }}" {% if user.cooking_level == level %}selected{% endif %}>{{ level }}</option>
+                            {% endfor %}
+                    </select>
+            </div>
+
+            <div class="form-group text-left">
+                <label for="allergies"><strong>Allergies</strong></label>
+                <input type="text" id="allergies_tags_input" class="form-control" placeholder="Type and press Enter" readonly>
+                <!-- Hidden input that will actually be submitted -->
+                <input type="hidden" id="allergies" name="allergies">
+                <small class="form-text text-muted">Press Enter to add each tag</small>
+                <div id="allergiesDisplay" class="mt-2"></div>
+            </div>
+
+            <div class="form-group text-left">
+                <label for="subscription_status"><strong>Subscription Status</strong></label>
+                <input type="text" id="subscription_status" name="subscription_status" class="form-control" value="{{ user.subscription_status }}" disabled>
+            </div>
+
+            <div class="text-center mt-3">
+                <button type="button" id="editBtn" class="btn btn-outline-primary">Edit</button>
+                <button type="submit" id="saveBtn" class="btn btn-success d-none">Save</button>
+            </div>
+        </form>
+
+        <hr class="my-4">
+        <h5 class="text-center text-danger">Danger Zone</h5>
+        <div class="text-center mt-2">
+          <form action="{{ url_for('views.delete_account') }}" method="POST" onsubmit="return confirm('Are you sure you want to delete your account? This action cannot be undone.');">
+            <button type="submit" class="btn btn-danger">Delete Account</button>
+          </form>
+        </div>
+    </div>
+  </div>
+</div>
+{% endblock%}
+
+{% block javascript %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const editBtn = document.getElementById("editBtn");
+        const saveBtn = document.getElementById("saveBtn");
+        const profileForm = document.getElementById("profileForm");
+        const formControls = document.querySelectorAll("input.form-control, select.form-control");
+
+        const dietaryTagsInput = document.getElementById("dietary_tags_input");
+        const dietaryPrefsInput = document.getElementById("dietary_preferences");
+        const tagsDisplay = document.getElementById("tagsDisplay");
+
+        const allergiesTagsInput = document.getElementById("allergies_tags_input");
+        const allergiesInput = document.getElementById("allergies");
+        const allergiesDisplay = document.getElementById("allergiesDisplay");
+
+        // Initialize from server data
+        const initialTags = {{ user.dietary_preferences | tojson | safe }};
+        const initialAllergies = {{ user.allergies | tojson | safe }};
+
+        let tags = Array.isArray(initialTags) ? initialTags : [];
+        let allergiesTags = Array.isArray(initialAllergies) ? initialAllergies : [];
+
+        // Update hidden inputs
+        dietaryPrefsInput.value = tags.join(',');
+        allergiesInput.value = allergiesTags.join(',');
+
+        function renderTags() {
+            tagsDisplay.innerHTML = '';
+            const isEditing = !dietaryTagsInput.readOnly;
+
+            tags.forEach((tag, i) => {
+                const badge = document.createElement('span');
+                badge.className = 'badge badge-info mr-1';
+                badge.textContent = tag;
+
+                if (isEditing) {
+                    const close = document.createElement('span');
+                    close.innerHTML = '&times;';
+                    close.className = 'ml-1';
+                    close.style.cursor = 'pointer';
+                    close.onclick = () => {
+                        tags.splice(i, 1);
+                        dietaryPrefsInput.value = tags.join(',');
+                        renderTags();
+                    };
+                    badge.appendChild(close);
+                }
+
+                tagsDisplay.appendChild(badge);
+            });
+        }
+
+        function renderAllergiesTags() {
+            allergiesDisplay.innerHTML = '';
+            const isEditing = !allergiesTagsInput.readOnly;
+
+            allergiesTags.forEach((tag, i) => {
+                const badge = document.createElement('span');
+                badge.className = 'badge badge-danger mr-1';
+                badge.textContent = tag;
+
+                if (isEditing) {
+                    const close = document.createElement('span');
+                    close.innerHTML = '&times;';
+                    close.className = 'ml-1';
+                    close.style.cursor = 'pointer';
+                    close.onclick = () => {
+                        allergiesTags.splice(i, 1);
+                        allergiesInput.value = allergiesTags.join(',');
+                        renderAllergiesTags();
+                    };
+                    badge.appendChild(close);
+                }
+
+                allergiesDisplay.appendChild(badge);
+            });
+        }
+
+        // Render right now
+        renderTags();
+        renderAllergiesTags();
+
+        editBtn.addEventListener("click", function () {
+            formControls.forEach(control => {
+                if (control.tagName === "SELECT") {
+                    control.removeAttribute("disabled");
+                } else {
+                    control.removeAttribute("readonly");
+                }
+            });
+
+            const profilePictureInput = document.getElementById("profile_picture");
+            if (profilePictureInput) {
+                profilePictureInput.removeAttribute("disabled");
+            }
+
+            // Enable the tag input fields
+            dietaryTagsInput.removeAttribute("readonly");
+            allergiesTagsInput.removeAttribute("readonly");
+
+            editBtn.classList.add("d-none");
+            saveBtn.classList.remove("d-none");
+            renderTags();
+            renderAllergiesTags();
+        });
+
+        profileForm.addEventListener("submit", function (e) {
+            // Ensure the hidden inputs have the updated values from the tags arrays
+            dietaryPrefsInput.value = tags.join(',');
+            allergiesInput.value = allergiesTags.join(',');
+
+            const profilePictureInput = document.getElementById("profile_picture");
+            if (profilePictureInput) {
+                profilePictureInput.removeAttribute("disabled");
+            }
+        });
+
+        dietaryTagsInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && this.value.trim()) {
+                e.preventDefault();
+                const value = this.value.trim();
+                if (!tags.includes(value)) {
+                    tags.push(value);
+                    dietaryPrefsInput.value = tags.join(',');
+                    renderTags();
+                }
+                this.value = '';
+            }
+        });
+
+        allergiesTagsInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && this.value.trim()) {
+                e.preventDefault();
+                const value = this.value.trim();
+                if (!allergiesTags.includes(value)) {
+                    allergiesTags.push(value);
+                    allergiesInput.value = allergiesTags.join(',');
+                    renderAllergiesTags();
+                }
+                this.value = '';
+            }
+        });
+
+        const profilePicInput = document.getElementById("profile_picture");
+        const profileImg = document.querySelector("img[alt='Profile Picture']");
+
+        profilePicInput.addEventListener("change", function () {
+            const file = this.files[0];
+            if (file && profileImg) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    profileImg.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    });
+</script>
+{% endblock %}

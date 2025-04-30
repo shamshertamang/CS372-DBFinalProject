@@ -1,18 +1,42 @@
-from . import db
+# models.py
+
 from flask_login import UserMixin
-from sqlalchemy.sql import func
+import json
 
+class User(UserMixin):
+    def __init__(self, user_row):
+        self.id = user_row['id']
+        self.user_name = user_row['user_name']
+        self.email = user_row['email']
+        self.password = user_row['password']
+        try:
+            # dietary_preferences is stored as JSON string
+            self.dietary_preferences = json.loads(user_row['dietary_preferences']) if user_row['dietary_preferences'] else []
+        except:
+            self.dietary_preferences = []
+        self.cooking_level = user_row['cooking_level']
+        try:
+            self.allergies = json.loads(user_row['allergies']) if user_row['allergies'] else []
+        except:
+            self.allergies = []
+        self.subscription_status = user_row['subscription_status']
+        self.photo_data = user_row['photo_data']
 
-class Note(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    data = db.Column(db.String(10000))
-    date = db.Column(db.DateTime(timezone=True), default=func.now())
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    @property
+    def profile_image(self):
+        return self.photo_data
 
+    @property
+    def is_authenticated(self):
+        return True
 
-class User(db.Model, UserMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(150), unique=True)
-    password = db.Column(db.String(150))
-    first_name = db.Column(db.String(150))
-    notes = db.relationship('Note')
+    @property
+    def is_active(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return str(self.id)

@@ -1,0 +1,71 @@
+<!-- view_recipe.html -->
+
+{% extends "base.html" %}
+{% block title %}View Recipe{% endblock %}
+
+{% block profile %}
+  {% if user.is_authenticated %}
+  <a class="nav-item nav-link" id="profile" href="{{ url_for('views.profile_page') }}">Profile</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<h1 align="center">{{ recipe.name }}</h1>
+
+{% if recipe.photos %}
+  <div class="d-flex justify-content-center flex-wrap mb-4">
+    {% for img in recipe.photos %}
+      <img src="data:image/jpeg;base64,{{ img }}"
+           class="img-fluid mr-2"
+           style="height:150px;object-fit:cover;"
+           alt="Recipe image {{ loop.index }}">
+    {% endfor %}
+  </div>
+{% endif %}
+
+<div class="container mt-4">
+  <div class="row">
+    <!-- LEFT column: metadata -->
+    <div class="col-md-4 text-left">
+      <p><strong>Origin:</strong> {{ recipe.origin }}</p>
+      <p><strong>Difficulty Level:</strong> {{ recipe.difficulty }}</p>
+      <p><strong>Preparation Time:</strong> {{ recipe.preparation_time }} minutes</p>
+      <p><strong>Cooking Time:</strong> {{ recipe.cooking_time }} minutes</p>
+      <p><strong>Serving:</strong> {{ recipe.serving_size }}</p>
+      <p><strong>Source:</strong> {{ recipe.source }}</p>
+    </div>
+
+    <!-- CENTER column: ingredients -->
+    <div class="col-md-4 text-left">
+      <h3>Ingredients:</h3>
+      <ol class="mb-0">
+        {% for ingredient in ingredients %}
+          <li>{{ ingredient.name }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    <!-- RIGHT column: steps -->
+    <div class="col-md-4 text-left">
+      <h3>Preparation Steps:</h3>
+      <ol class="pl-3">
+        {% for step in preparation_steps %}
+          <li>{{ step }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  <!-- buttons row -->
+  <div class="d-flex mt-4">
+    <a href="{{ url_for('views.home') }}"
+       class="btn btn-secondary flex-fill mr-2">
+      Back to Recipes
+    </a>
+    <a href="{{ url_for('views.edit_recipe', recipe_id=recipe.id) }}"
+       class="btn btn-warning flex-fill">
+      Edit Recipe
+    </a>
+  </div>
+</div>
+{% endblock %}
