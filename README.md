@@ -162,8 +162,14 @@ API Endpoint documentation can be found in the root directory under API_ENDPOINT
 ---
 
 This app has disabled password hashing to allow for using dml data for test. The database will initialise four users, you can login with their credentials which are as follows:
+1) email: aarav@example.com password: hashedpassword1
+2) email: emily@example.com password: hashedpassword2
+3) email: carlos@example.com password: hashedpassword3
+4) email: bella@example.com password: hashedpassword4
 
-But if you wish to sign up/login yourself, you are more than welcome to do so. Just keep in mind that you will need to populate recipes, ingredients, meals and meal plans by yourself.
+I suggest you to use the first credentials for checking this assignment because it has more data concerning ingredients, recipes, meals and meal plans. You may check out other credentials too if you want.
+
+If you wish to sign up/login yourself, you are more than welcome to do so. Just keep in mind that you will need to populate recipes, ingredients, meals and meal plans by yourself.
 
 ddl.sql, dml.sql and queries.sql are placed in website/sql, if you want to view them.
 
