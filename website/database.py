@@ -94,15 +94,11 @@ def get_user_by_id(user_id):
     conn.close()
     return User(user_row) if user_row else None
 
-def create_user(email, name, user_name, password, photo_data, cooking_level=1,
-                dietary_preferences = None, allergies = None):
+def create_user(email, user_name, password, photo_data = None, cooking_level=1):
     """
     - dietary_preferences: python list of strings
     - allergies: python list of strings
     """
-
-    dietary_preferences = dietary_preferences or []
-    allergies = allergies or []
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -112,24 +108,10 @@ def create_user(email, name, user_name, password, photo_data, cooking_level=1,
         INSERT INTO users (email, user_name, password, cooking_level, photo_data)
         VALUES (?, ?, ?, ?, ?)
     ''', (email, user_name, password, cooking_level, photo_data))
-    user_id = cursor.lastrowid
-
-    # input data in dietary_preferences
-    for pref in dietary_preferences:
-        cursor.execute("""
-            INSERT INTO user_dietary_preference (user_id, preference) 
-            VALUES (?, ?)""", (user_id, pref)
-        )
-
-    # input data in allergy
-    for allergy in allergies:
-        cursor.execute("""
-        INSERT INTO user_allergy (user_id, allergy) 
-        VALUES (?,?)""", (user_id, allergy))
     conn.commit()
     conn.close()
-    user_row = get_user_by_email(email)
-    return User(user_row)
+    user = get_user_by_email(email)
+    return user
 
 def update_user_profile(user_id, email, user_name, photo_data, cooking_level, dietary_preferences, allergies):
 

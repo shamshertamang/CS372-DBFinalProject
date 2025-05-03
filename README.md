@@ -11,7 +11,7 @@ Food Book is a recipe and meal plan preparation app that will allow users to cre
 
 This flask based application allows different users to create, update, access and delete recipes, meals and meal plans at the convinience. The app also supports user profiles, updates, views and delete of user profiles.
 
-### [Live Demo link](#yet-to-be-added) The live demo will be linked on May 3 before 4 pm
+### [Live Demo link](#https://www.loom.com/share/9dbf37e390b34bd5a8090aae0261113e?sid=a26fd182-9412-4645-9082-9faad1a5bf05) The live demo will be linked on May 3 before 4 pm
 
 ---
 

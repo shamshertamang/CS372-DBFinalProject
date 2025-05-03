@@ -77,7 +77,7 @@ def sign_up():
         else:
             # hashed_password = generate_password_hash(password1, method='scrypt')
             hashed_password = password1
-            new_user = create_user(email, user_name, hashed_password)
+            new_user = create_user(email = email, user_name=user_name, password=hashed_password)
             login_user(new_user, remember=True)
             flash('Account created!', category='success')
             return redirect(url_for('views.home'))
