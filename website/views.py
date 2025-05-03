@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, flash, url_for, redirect
 from flask_login import login_required, current_user, logout_user
 from .database import (
     get_all_recipes, get_all_meals, get_all_meal_plans, get_recipe_by_name, create_recipe, get_ingredients,
-    create_ingredient, create_recipe_ingredient, get_recipe, get_recipe_ingredients, update_recipe,
+    create_ingredient, create_recipe_ingredient, get_recipe, get_recipe_ingredients, update_recipe, delete_recipe as delete_recipe_db,
     delete_recipe_ingredient, get_recipe_steps, get_meal_by_name, create_meal, get_meal, get_recipe_in_meal,
     update_meal, get_recipe_ids_for_meal, delete_recipe_from_meal_recipe, add_recipe_to_meal,
     delete_meal as delete_meal_db, get_meal_plan_by_user_and_title, create_meal_plan_with_schedule, get_meal_plan,
@@ -149,7 +149,7 @@ def delete_recipe(recipe_id):
         flash('Recipe not found.', category='error')
         return redirect(url_for('views.home'))
 
-    delete_recipe(recipe_id=recipe_id)
+    delete_recipe_db(recipe_id=recipe_id)
     flash('Recipe deleted successfully!', category='success')
     return redirect(url_for('views.home'))
 
@@ -158,7 +158,7 @@ def delete_recipe(recipe_id):
 @login_required
 def edit_recipe(recipe_id):
     # get recipe and ingredient from queries
-    recipe = get_recipe(recipe_id)
+    recipe = get_recipe(recipe_id, current_user.id)
 
     ingredients = get_recipe_ingredients(recipe_id)
 
@@ -228,7 +228,7 @@ def edit_recipe(recipe_id):
 @views.route('/recipe/<int:recipe_id>')
 @login_required
 def view_recipe(recipe_id):
-    recipe_row = get_recipe(recipe_id)
+    recipe_row = get_recipe(recipe_id, current_user.id)
     if not recipe_row:
         flash('Recipe not found.', category='error')
         return redirect(url_for('views.home'))
