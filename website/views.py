@@ -1,14 +1,17 @@
 # views.py
 from collections import deque
 
-from flask import Blueprint, render_template, request, flash, jsonify, url_for, redirect
+from flask import Blueprint, render_template, request, flash, url_for, redirect
 from flask_login import login_required, current_user, logout_user
-from unicodedata import category
 from .database import (
     get_user_by_id, update_user_profile, delete_user_by_id, get_all_recipes, create_recipe,
     get_db_connection, get_user_by_email, create_ingredient, create_recipe_ingredient, get_recipe,
     get_recipe_ingredients, update_recipe, delete_recipe_ingredient, get_ingredients, get_recipe_by_name, create_meal,
-    get_all_meals, get_meal, update_meal, delete_meal as delete_meal_db
+    get_all_meals, get_meal, update_meal, delete_meal as delete_meal_db, get_meal_by_name, create_meal_plan,
+    add_meal_to_plan, get_meal_plan, get_meal_plan_meals_and_schedules,
+    get_meal_plan_by_user_and_title, delete_meal_plan_and_meal_plan_meals_by_id, get_all_meal_plans, update_meal_plan,
+    delete_meal_plan_meal, get_recipe_steps, get_recipe_in_meal, get_recipe_ids_for_meal, delete_recipes_from_meal,
+    add_recipe_to_meal, delete_recipe_from_meal_recipe, update_meal_plan_meal_schedule, create_meal_plan_with_schedule
 )
 import json, re, base64
 
@@ -24,32 +27,26 @@ def is_valid_email(email):
 @login_required
 def home():
     # get all recipes
-    rows = get_all_recipes()
+    rows = get_all_recipes(current_user.id)
     recipes = []
     for row in rows:
         rec = dict(row)
-        rec['photos'] = json.loads(rec.get('photos_json') or '[]')
+        blob = rec.pop('photo')
+        rec['photo'] = base64.b64decode(blob).decode('utf-8') if blob else None
         recipes.append(rec)
+
     # get all meals
-    rows = get_all_meals()
-    meals = []
-    for row in rows:
-        meal = dict(row)
-        meal['photos'] = []
+    # get all meals (no photos)
+    rows = get_all_meals(current_user.id)
+    meals = [{
+            'meal_id': r['meal_id'],
+            'meal_title': r['meal_title'],
+            'meal_time': r['meal_time']
+    } for r in rows]
 
-        recipe_ids = json.loads(meal['recipe_ids'])
-        first_recipe_photo = None
-        for recipe_id in recipe_ids:
-            recipe = get_recipe(recipe_id)
-            if recipe and recipe['photos_json']:
-                photos = json.loads(recipe['photos_json'])
-                if photos:
-                    first_recipe_photo = photos[0]
-                    break
-
-        meal['photos'] = first_recipe_photo
-        meals.append(meal)
-    return render_template("home.html", user=current_user, recipes=recipes, meals= meals)
+    meal_plans = get_all_meal_plans(current_user.id)
+    return render_template("home.html", user=current_user, recipes=recipes, meals= meals,
+                           meal_plans=meal_plans)
 
 
 @views.route('/add-recipe', methods=['GET', 'POST'])
@@ -96,6 +93,9 @@ def add_recipe():
         preparation_steps = [s.strip() for s in prep_steps_raw.split(',') if s.strip()]
         ingredients = [i.strip() for i in ingredients_raw.split(',') if i.strip()]
 
+        file = request.files.get('photo')
+        photo_data = file.read() if file and file.filename else None
+
         # Insert recipe
         try:
             recipe_id = create_recipe(
@@ -108,7 +108,7 @@ def add_recipe():
                 cooking_time=cook_time,
                 serving_size=serving_size,
                 source=source or 'Unknown',
-                photos=[]
+                photo_data=photo_data
             )
 
             for ingredient_name in ingredients:
@@ -179,14 +179,12 @@ def edit_recipe(recipe_id):
             serving_size = 1
         source = request.form.get('source')
 
-        photo_files = request.files.getlist('photos')
-        existing = json.loads(recipe['photos_json'] or '[]')
-        photo_blobs = deque(existing, maxlen=4)
+        # single-photo upload
+        file = request.files.get('photo')
+        photo_data = None
 
-        for f in photo_files[:4]:
-            if f and f.filename:
-                data = f.read()
-                photo_blobs.append(base64.b64encode(data).decode('utf-8'))
+        if file and file.filename:
+            photo_data = file.read()
 
         if not name or not preparation_steps_raw or not ingredients_raw:
             flash('Please fill out required fields.', category='error')
@@ -196,7 +194,7 @@ def edit_recipe(recipe_id):
             update_recipe(name=name, origin=origin, difficulty=difficulty,
                           preparation_steps=preparation_steps, preparation_time=preparation_time,
                           cooking_time=cooking_time, serving_size=serving_size, source=source,
-                          photos=photo_blobs, recipe_id=recipe_id)
+                          photo_data=photo_data, recipe_id=recipe_id)
 
             # delete existing recipe_ingredients
             delete_recipe_ingredient(recipe_id)
@@ -216,7 +214,7 @@ def edit_recipe(recipe_id):
             flash('Recipe updated successfully!', category='success')
             return redirect(url_for('views.view_recipe', recipe_id=recipe_id))
 
-    preparation_steps = json.loads(recipe['preparation_steps']) if recipe['preparation_steps'] else []
+    preparation_steps = get_recipe_steps(recipe_id)
 
     return render_template('edit_recipe.html', user=current_user, recipe=recipe,
                            preparation_steps=preparation_steps, ingredients=ingredients)
@@ -225,20 +223,20 @@ def edit_recipe(recipe_id):
 @views.route('/recipe/<int:recipe_id>')
 @login_required
 def view_recipe(recipe_id):
-    recipe_ = get_recipe(recipe_id)
-    if recipe_ is None:
+    recipe_row = get_recipe(recipe_id)
+    if not recipe_row:
         flash('Recipe not found.', category='error')
         return redirect(url_for('views.home'))
 
+    recipe = dict(recipe_row)
+    blob = recipe.pop('photo')
+    recipe['photo'] = base64.b64encode(blob).decode('utf-8') if blob else None
+
     ingredients = get_recipe_ingredients(recipe_id)
-    if ingredients is None:
-        flash('Ingredients not found. You need to add ingredients to the recipe', category='error')
-        return redirect(url_for('views.edit_recipe', recipe_id=recipe_id))
 
-    preparation_steps = json.loads(recipe_['preparation_steps']) if recipe_['preparation_steps'] else []
+    ingredients = [r['name'] for r in ingredients]
 
-    recipe = dict(recipe_)
-    recipe['photos'] = json.loads(recipe.get('photos_json') or '[]')
+    preparation_steps = get_recipe_steps(recipe_id)
 
     return render_template('view_recipe.html', user=current_user, recipe=recipe,
                            preparation_steps=preparation_steps, ingredients=ingredients)
@@ -247,7 +245,7 @@ def view_recipe(recipe_id):
 @views.route('/add-meal', methods=['GET', 'POST'])
 @login_required
 def add_meal():
-    rows = get_all_recipes()
+    rows = get_all_recipes(current_user.id)
     recipes = [dict(row) for row in rows]
 
     if not recipes:
@@ -255,13 +253,18 @@ def add_meal():
         return redirect(url_for('views.home'))
 
     if request.method == 'POST':
-        meal_title = request.form.get('meal_title').strip()
+        meal_title = request.form.get('meal_title', '').strip()
         meal_time = request.form.get('meal_time').strip()  # E.g., "Breakfast", "Lunch", "Dinner"
-        scheduled_datetime = request.form.get('scheduled_datetime').strip()  # "YYYY-MM-DD HH:MM:SS"
+        # scheduled_datetime = request.form.get('scheduled_datetime').strip()  # "YYYY-MM-DD HH:MM:SS"
         recipe_ids_raw = request.form.getlist('recipe_ids')  # Comma-separated list of recipe IDs
         recipe_ids = [int(r.strip()) for r in recipe_ids_raw if r.strip()]
 
-        if not meal_time or not scheduled_datetime or not recipe_ids:
+        # if not meal_time or not scheduled_datetime or not recipe_ids:
+        if get_meal_by_name(user_id = current_user.id, meal_title = meal_title):
+            flash('Meal already exists by this name.', category='error')
+            return redirect(url_for('views.add_meal'))
+
+        if not meal_time or not recipe_ids:
             flash('Please fill out all fields', category='error')
             return redirect(url_for('views.add_meal'))
 
@@ -271,7 +274,7 @@ def add_meal():
                 recipe_ids=recipe_ids,
                 meal_title=meal_title,
                 meal_time=meal_time,
-                scheduled_datetime=scheduled_datetime
+                # scheduled_datetime=scheduled_datetime
             )
             flash('Meal created successfully!', category='success')
             return redirect(url_for('views.view_meal', meal_id=meal_id))
@@ -279,38 +282,39 @@ def add_meal():
             flash(f'Error creating meal: {e}', category='error')
             return redirect(url_for('views.add_meal'))
 
-    rows = get_all_recipes()
-    recipes = []
-    for row in rows:
-        recipes.append(dict(row))
     return render_template('add_meal.html', user=current_user, recipes=recipes)
 
 @views.route('/meal/<int:meal_id>')
 @login_required
 def view_meal(meal_id):
     meal = get_meal(meal_id)
-    if meal is None:
+
+    if meal is None or meal['user_id'] != current_user.id:
         flash('Meal not found.', category='error')
         return redirect(url_for('views.home'))
 
     # Retrieve recipes associated with the meal
-    recipe_ids = json.loads(meal['recipe_ids'])  # Deserialize JSON array of recipe IDs
+    recipes = get_recipe_in_meal(meal_id)
     meal_recipes = []
     unique_ingredients = set()
 
-    for recipe_id in recipe_ids:
-        recipe_raw = get_recipe(recipe_id)
-        if not recipe_raw:
-            continue
-        rec = dict(recipe_raw)
+    for recipe in recipes:
+        rec = dict(recipe)
+        recipe_id = rec['id']
+
+        # fetch ordered preparation steps
+        rec['preparation_steps'] = get_recipe_steps(recipe_id)
+
+        # fetch and attach ingredient list for this recipe
         ingr_rows = get_recipe_ingredients(recipe_id)
         ingredients = [row['name'] for row in ingr_rows]
-        rec['ingredients'] = list(dict.fromkeys(ingredients))
+        rec['ingredients'] = ingredients
+
         unique_ingredients.update(rec['ingredients'])
-        rec['preparation_steps'] = json.loads(rec.get('preparation_steps') or '[]')
+
         meal_recipes.append(rec)
 
-
+    unique_ingredients = list(unique_ingredients)
 
     return render_template('view_meal.html', user=current_user, meal=meal,
                            meal_recipes=meal_recipes, unique_ingredients=unique_ingredients)
@@ -323,19 +327,34 @@ def edit_meal(meal_id):
         flash('Meal not found.', 'error')
         return redirect(url_for('views.home'))
 
-    # on POST: pull form fields, call update_meal(...)
     if request.method == 'POST':
-        title = request.form['meal_title']
-        time  = request.form['meal_time']
-        sched = request.form['scheduled_datetime']
-        ids   = [int(r) for r in request.form.getlist('recipe_ids')]
-        update_meal(meal_id, recipe_ids=ids, meal_time=time, scheduled_datetime=sched)
+        title = request.form['meal_title'].strip()
+        time  = request.form['meal_time'].strip()
+        new_ids = {int(r) for r in request.form.getlist('recipe_ids')}
+
+        if not new_ids:
+            flash('Select at least one recipe', category='error')
+            return redirect(url_for('views.edit_meal', meal_id= meal_id))
+
+        existing_meal = get_meal_by_name(user_id=current_user.id, meal_title=title)
+        if existing_meal and existing_meal != meal_id:
+            flash('Meal already exists by this name.', category='error')
+            return redirect(url_for('views.edit_meal', meal_id= meal_id))
+        update_meal(meal_id, meal_title=title, meal_time=time)
+
+        old_ids = set(get_recipe_ids_for_meal(meal_id))
+        for recipe_id in (old_ids-new_ids):
+            delete_recipe_from_meal_recipe(meal_id, recipe_id)
+
+        for recipe_id in (new_ids-old_ids):
+            add_recipe_to_meal(meal_id, recipe_id)
+
         flash('Meal updated!', 'success')
         return redirect(url_for('views.view_meal', meal_id=meal_id))
 
     # on GET: pre-load all recipes, mark the ones in this meal
-    all_recipes = [dict(r) for r in get_all_recipes()]
-    selected = set(json.loads(meal['recipe_ids']))
+    all_recipes = [dict(r) for r in get_all_recipes(current_user.id)]
+    selected = set(get_recipe_ids_for_meal(meal_id))
     return render_template('edit_meal.html',
                            user=current_user,
                            meal=meal,
@@ -352,6 +371,182 @@ def delete_meal(meal_id):
     except Exception as e:
         flash(f'Error deleting meal: {e}', 'error')
     return redirect(url_for('views.home')+'#meals')
+
+# ----------- Meal Plan related Routing -----------
+@views.route('/add-meal-plan', methods=['GET', 'POST'])
+@login_required
+def add_meal_plan():
+    if request.method == 'POST':
+        title      = request.form.get('plan_title', '').strip()
+        start_date = request.form.get('start_date', '').strip()
+        end_date   = request.form.get('end_date', '').strip()
+        goals      = request.form.get('goals', '').strip()
+
+        meal_ids = [int(m) for m in request.form.getlist('meal_ids')]
+
+        if not title or not start_date or not end_date:
+            flash('Please provide a title, start date and end date.', 'error')
+            return redirect(url_for('views.add_meal_plan'))
+        if start_date > end_date:
+            flash('Start date must be on or before end date.', 'error')
+            return redirect(url_for('views.add_meal_plan'))
+        if not meal_ids:
+            flash('Select at least one meal for your plan.', 'error')
+            return redirect(url_for('views.add_meal_plan'))
+
+        if get_meal_plan_by_user_and_title(current_user.id, title):
+            flash('Meal plan already exists with that title.', 'error')
+            return redirect(url_for('views.add_meal_plan'))
+
+        valid_ids = {m['meal_id'] for m in get_all_meals(current_user.id)}
+        if set(meal_ids)-valid_ids:
+            flash("Invalid meal selected.", 'error')
+            return redirect(url_for('views.add_meal_plan'))
+
+        schedule_map = {}
+        for m in meal_ids:
+            dt = request.form.get(f'schedule_{m}', '').strip()
+            if not dt:
+                flash('Each selected meal must have a date/time.', 'error')
+                return redirect(url_for('views.add_meal_plan'))
+            schedule_map[m] = dt
+
+
+        try:
+            plan_id = create_meal_plan_with_schedule(
+                user_id=current_user.id,
+                title=title,
+                start_date=start_date,
+                end_date=end_date,
+                goals=goals,
+                schedule_map=schedule_map
+            )
+
+            flash('Meal plan created successfully!', 'success')
+            return redirect(url_for('views.view_meal_plan', meal_plan_id=plan_id))
+
+        except Exception as e:
+            flash(f'Error creating meal plan: {e}', 'error')
+            return redirect(url_for('views.add_meal_plan'))
+
+    # GET → load form, passing only this user’s meals
+    all_meals = get_all_meals(current_user.id)
+    if not all_meals:
+        flash('No meals found. Please add meals first', 'info')
+    meals = [dict(m) for m in all_meals]
+    return render_template('add_meal_plan.html', user=current_user, meals=meals)
+
+
+@views.route('/view-meal-plan/<int:meal_plan_id>', methods=['GET'])
+@login_required
+def view_meal_plan(meal_plan_id):
+    plan = get_meal_plan(meal_plan_id, current_user.id)
+
+    # Not found or not owned by this user?
+    if not plan or plan['user_id'] != current_user.id:
+        flash('Meal plan not found or access denied.', 'error')
+        return redirect(url_for('views.home'))
+
+    rows = get_meal_plan_meals_and_schedules(meal_plan_id)
+    scheduled_meals = [dict(r) for r in rows]
+
+    return render_template(
+        'view_meal_plan.html',
+        user=current_user,
+        plan=plan,
+        scheduled_meals=scheduled_meals
+    )
+
+@views.route('/edit-meal-plan/<int:meal_plan_id>', methods=['GET', 'POST'])
+@login_required
+def edit_meal_plan(meal_plan_id):
+    plan = get_meal_plan(meal_plan_id, user_id=current_user.id)
+    if not plan:
+        flash('Meal plan not found or access denied.', 'error')
+        return redirect(url_for('views.home'))
+
+    if request.method == 'POST':
+        # pull in form values
+        title = request.form.get('plan_title', '').strip()
+        start_date = request.form.get('start_date', '').strip()
+        end_date = request.form.get('end_date', '').strip()
+        goals = request.form.get('goals', '').strip()
+        meal_ids = [int(m) for m in request.form.getlist('meal_ids')]
+
+        # basic validation
+        if not title or not start_date or not end_date:
+            flash('Please provide title, start date and end date.', 'error')
+            return redirect(url_for('views.edit_meal_plan', meal_plan_id=meal_plan_id))
+        if start_date > end_date:
+            flash('Start date must be on or before end date.', 'error')
+            return redirect(url_for('views.edit_meal_plan', meal_plan_id=meal_plan_id))
+        if not meal_ids:
+            flash('Select at least one meal for your plan.', 'error')
+            return redirect(url_for('views.edit_meal_plan', meal_plan_id=meal_plan_id))
+
+        existing = get_meal_plan_by_user_and_title(current_user.id, title)
+        if existing and existing != meal_plan_id:
+            flash("You already have a plan by that title.", "error")
+            return redirect(url_for('views.edit_meal_plan', meal_plan_id=meal_plan_id))
+
+        # collect each meal's datetime
+        schedule_map = {}
+        for m in meal_ids:
+            dt = request.form.get(f'schedule_{m}', '').strip()
+            if not dt:
+                flash('Each selected meal must have a date/time.', 'error')
+                return redirect(url_for('views.edit_meal_plan', meal_plan_id=meal_plan_id))
+            schedule_map[m] = dt
+
+        existing_rows = get_meal_plan_meals_and_schedules(meal_plan_id)
+        old_map = {r['meal_id']: r['scheduled_datetime'] for r in existing_rows}
+        new_map = schedule_map
+
+        # update the MealPlan record
+        update_meal_plan(title, start_date, end_date, goals, meal_plan_id)
+
+        old_ids = set(old_map)
+        new_ids = set(new_map)
+
+        for removed in old_ids-new_ids:
+            delete_meal_plan_meal(meal_plan_id, removed)
+        for added in new_ids-old_ids:
+            add_meal_to_plan(meal_plan_id, added, new_map[added])
+
+        for kept in new_ids & old_ids:
+            if new_map[kept] != old_map[kept]:
+                update_meal_plan_meal_schedule(meal_plan_id, kept, new_map[kept])
+
+        flash('Meal plan updated successfully!', 'success')
+        return redirect(url_for('views.view_meal_plan', meal_plan_id=meal_plan_id))
+
+    # GET → pre-load meals & their existing schedule entries
+    all_meals = [dict(m) for m in get_all_meals(current_user.id)]
+    scheduled_meals = [dict(r) for r in get_meal_plan_meals_and_schedules(meal_plan_id)]
+    return render_template(
+        'edit_meal_plan.html',
+        user=current_user,
+        plan=plan,
+        meals=all_meals,
+        scheduled_meals=scheduled_meals
+    )
+
+@views.route('/delete-meal-plan/<int:meal_plan_id>', methods=['POST'])
+@login_required
+def delete_meal_plan(meal_plan_id):
+
+    plan = get_meal_plan(meal_plan_id, current_user.id)
+    if not plan or plan['user_id'] != current_user.id:
+        flash('Meal plan not found or access denied.', 'error')
+        return redirect(url_for('views.home'))
+
+    try:
+        delete_meal_plan_and_meal_plan_meals_by_id(meal_plan_id)
+        flash('Meal plan deleted successfully!', 'success')
+    except Exception as e:
+        flash(f'Error deleting meal plan: {e}', 'error')
+
+    return redirect(url_for('views.home')+'#meal-plans')
 
 # ----------- Profile Page Routing -----------
 @views.route('/profile', methods=['GET', 'POST'])
@@ -382,8 +577,6 @@ def profile_page():
         raw_allergies = request.form.get('allergies', '')
         new_allergies = [a.strip() for a in raw_allergies.split(',') if a.strip()] if raw_allergies else []
 
-        new_subscription_status = request.form.get('subscription_status', '').strip()
-
         if not new_user_name:
             new_user_name = current_user.user_name
 
@@ -396,8 +589,6 @@ def profile_page():
         if not new_allergies:
             new_allergies = current_user.allergies
 
-        if not new_subscription_status:
-            new_subscription_status = current_user.subscription_status
 
         if not is_valid_email(new_email):
             flash('Invalid email format.', category='error')
@@ -421,7 +612,6 @@ def profile_page():
                 dietary_preferences=new_dietary_preferences,
                 cooking_level=new_cooking_level,
                 allergies=new_allergies,
-                subscription_status=new_subscription_status,
                 photo_data=photo_data
             )
             flash('Profile page updated!', category='success')
@@ -443,13 +633,6 @@ def profile_page():
 def delete_account():
     try:
         delete_user_by_id(current_user.id)
-        # need to delete ingredients
-        # need to delete recipe ingredients
-        # need to delete recipes
-        # need to delete recipe ids
-        # need to delete meals
-        # need to delete meal plan
-        # need to delete mealplanmeal
         logout_user()
         flash("Your account has been deleted. We're sorry to see you go 💔", category='success')
 

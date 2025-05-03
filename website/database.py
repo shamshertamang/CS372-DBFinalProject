@@ -3,229 +3,165 @@
 import sqlite3
 import json
 import os
+from pathlib import Path
 from .models import User
 
-def get_db_connection():
-    conn = sqlite3.connect('instance/database.db')
+
+DB_PATH = Path("instance/database.db")
+DDL_PATH = Path("website/sql/ddl.sql")
+DML_PATH = Path("website/sql/dml.sql")
+
+
+def get_db_connection(db_path=DB_PATH):
+    conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
-def create_database():
-    # conn = sqlite3.connect('instance/database.db')
-    # cursor = conn.cursor()
-    #
-    # cursor.execute("DROP TABLE IF EXISTS Meal")
-    # cursor.execute("""
-    #             CREATE TABLE Meal (
-    #                 meal_id INTEGER PRIMARY KEY,
-    #                 meal_title TEXT,
-    #                 recipe_ids TEXT NOT NULL,  -- JSON array of Recipe IDs, stored as TEXT
-    #                 user_id INTEGER NOT NULL,
-    #                 meal_time TEXT,  -- E.g., "Breakfast", "Lunch", "Dinner"
-    #                 scheduled_datetime TEXT, -- Store datetime as TEXT ("YYYY-MM-DD HH:MM:SS")
-    #                 FOREIGN KEY (user_id) REFERENCES Users(user_id)
-    #             );
-    #         """)
-    # conn.close()
-    if not os.path.exists('instance/database.db'):
-        conn = sqlite3.connect('instance/database.db')
+def create_database(db_path=DB_PATH):
+    if not db_path.exists():
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        conn = get_db_connection()
         cursor = conn.cursor()
 
-        # create Users
-        cursor.execute('''
-            CREATE TABLE Users (
-                id INTEGER PRIMARY KEY,
-                user_name TEXT UNIQUE NOT NULL,
-                name TEXT,
-                email TEXT UNIQUE NOT NULL,
-                password TEXT,
-                dietary_preferences TEXT,
-                cooking_level INTEGER CHECK ( cooking_level >= 1 and cooking_level <= 5 ),
-                allergies TEXT,
-                subscription_status TEXT,
-                photo_data blob
-            )
-        ''')
-
-        # Create Ingredient table
-        cursor.execute("""
-            CREATE TABLE Ingredient (
-                id   INTEGER PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                name TEXT UNIQUE NOT NULL,
-                store TEXT,
-                unit TEXT,
-                nutritional_label JSON,
-                alternative_stores JSON,
-                common_substitutes JSON,
-                seasonal_availability Text,
-                Foreign Key (user_id) references Users(id)
-            )
-        """)
-
-        # create recipe ingredients
-        cursor.execute("""
-            CREATE TABLE RecipeIngredient (
-                recipe_id    INTEGER,
-                ingredient_id INTEGER,
-                quantity     TEXT,
-                unit         TEXT,
-                PRIMARY KEY (recipe_id, ingredient_id),
-                FOREIGN KEY(recipe_id)    REFERENCES Recipe(id),
-                FOREIGN KEY(ingredient_id) REFERENCES Ingredient(id)
-            )
-        """)
-
-        # create recipe
-        cursor.execute("""
-            CREATE TABLE Recipe (
-                id          INTEGER PRIMARY KEY,
-                user_id     INTEGER,
-                name TEXT UNIQUE,
-                -- CollectionID INTEGER,
-                origin TEXT,
-                difficulty INTEGER CHECK ( Difficulty >= 1 and Difficulty <= 5 ),
-                --Remindertimes Text,
-                preparation_steps JSON,
-                preparation_time time,
-                cooking_time time,
-                serving_size INTEGER,
-                source TEXT, --_AI_or_self
-                photos_json TEXT CHECK (
-                    json_array_length(photos_json) <= 4
-                ),
-                FOREIGN KEY(user_id) REFERENCES User(id)
-            )
-        """)
-
-        # create recipe_ingredient
-        cursor.execute('''
-            CREATE TABLE recipe_ingredient (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                recipe_id INTEGER,
-                ingredient_id INTEGER,
-                FOREIGN KEY (recipe_id) REFERENCES recipe (id),
-                FOREIGN KEY (ingredient_id) REFERENCES ingredient (id)
-            )
-        ''')
-
-        # create meal
-        cursor.execute("""
-            CREATE TABLE Meal (
-                meal_id INTEGER PRIMARY KEY,
-                meal_title TEXT,
-                recipe_ids TEXT NOT NULL,  -- JSON array of Recipe IDs, stored as TEXT
-                user_id INTEGER NOT NULL,
-                meal_time TEXT,  -- E.g., "Breakfast", "Lunch", "Dinner"
-                scheduled_datetime TEXT, -- Store datetime as TEXT ("YYYY-MM-DD HH:MM:SS")
-                FOREIGN KEY (user_id) REFERENCES Users(id)
-            );
-        """)
-
-        # create meal plan
-        cursor.execute("""
-            CREATE TABLE MealPlan (
-                meal_plan_id INTEGER PRIMARY KEY,
-                title TEXT UNIQUE NOT NULL,
-                user_id INTEGER NOT NULL,
-                start_date TEXT,  -- Store dates as TEXT (ISO format recommended: "YYYY-MM-DD")
-                end_date TEXT,
-                FOREIGN KEY (user_id) REFERENCES Users(user_id)
-            );
-        """)
-
-        # create meal plan meal
-        cursor.execute("""
-            CREATE TABLE MealPlanMeal (
-            meal_plan_id INTEGER NOT NULL,
-            meal_id INTEGER NOT NULL,
-            PRIMARY KEY (meal_plan_id, meal_id),
-            FOREIGN KEY (meal_plan_id) REFERENCES MealPlan(meal_plan_id),
-            FOREIGN KEY (meal_id) REFERENCES Meal(meal_id)
-        );
-        """)
-
-        # maybe pantry list
-
-        # maybe shopping list
-
+        for script in (DDL_PATH, DML_PATH):
+            with script.open(encoding="utf-8") as f:
+                cursor.executescript(f.read())
         conn.commit()
-        conn.close()
-        print('Database created successfully!')
+        print("Database created and populated successfully")
 
 ######################################
 # ----------- User Related -----------
 ######################################
 
+# base query for get_user
+_BASE_USER_WITH_JSON = """
+    SELECT u.id, u.user_name, u.name, u.email, u.password, u.cooking_level, u.photo_data,
+        COALESCE(
+            (SELECT json_group_array(preference)
+                FROM user_dietary_preference
+                WHERE user_id = u.id), '[]') AS dietary_preferences,
+        COALESCE(
+            (SELECT json_group_array(allergy)
+                FROM user_allergy
+                WHERE user_id = u.id), '[]') AS allergies
+    FROM users AS u
+"""
+
+# get_user by email
 def get_user_by_email(email):
     conn = get_db_connection()
-    user_row = conn.execute('SELECT * FROM Users WHERE email = ?', (email,)).fetchone()
+    cursor = conn.cursor()
+    user_row = cursor.execute(
+        _BASE_USER_WITH_JSON + " WHERE email = ?", (email,)
+    ).fetchone()
     conn.close()
     return User(user_row) if user_row else None
 
+# get_user by user_name
+def get_user_by_username(user_name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    user_row = cursor.execute(
+        _BASE_USER_WITH_JSON + " WHERE user_name = ?", (user_name,)
+    ).fetchone()
+    conn.close()
+    return User(user_row) if user_row else None
+
+# get_user by id
 def get_user_by_id(user_id):
     conn = get_db_connection()
-    user_row = conn.execute('SELECT * FROM Users WHERE id = ?', (user_id,)).fetchone()
+    cursor = conn.cursor()
+    user_row = cursor.execute(
+        _BASE_USER_WITH_JSON + " WHERE id = ?", (user_id,)
+    ).fetchone()
     conn.close()
     return User(user_row) if user_row else None
 
-def create_user(email, user_name, password_hash):
-    conn = get_db_connection()
-    conn.execute('''
-        INSERT INTO Users (email, user_name, password, dietary_preferences, cooking_level, allergies, subscription_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (email, user_name, password_hash, json.dumps([]), 1, json.dumps([]), ''))
-    conn.commit()
-    user_row = conn.execute('SELECT * FROM Users WHERE email = ?', (email,)).fetchone()
-    conn.close()
-    return User(user_row)
+def create_user(email, name, user_name, password, photo_data, cooking_level=1,
+                dietary_preferences = None, allergies = None):
+    """
+    - dietary_preferences: python list of strings
+    - allergies: python list of strings
+    """
 
-def update_user_profile(user_id, user_name, email, dietary_preferences, cooking_level, allergies, subscription_status, photo_data = None):
+    dietary_preferences = dietary_preferences or []
+    allergies = allergies or []
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # input data in user table
+    cursor.execute('''
+        INSERT INTO users (email, user_name, password, cooking_level, photo_data)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (email, user_name, password, cooking_level, photo_data))
+    user_id = cursor.lastrowid
+
+    # input data in dietary_preferences
+    for pref in dietary_preferences:
+        cursor.execute("""
+            INSERT INTO user_dietary_preference (user_id, preference) 
+            VALUES (?, ?)""", (user_id, pref)
+        )
+
+    # input data in allergy
+    for allergy in allergies:
+        cursor.execute("""
+        INSERT INTO user_allergy (user_id, allergy) 
+        VALUES (?,?)""", (user_id, allergy))
+    conn.commit()
+    conn.close()
+    user_row = get_user_by_email(email)
+    return User(user_row)
+
+def update_user_profile(user_id, email, user_name, photo_data, cooking_level, dietary_preferences, allergies):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    dietary_preferences = dietary_preferences or []
+    allergies = allergies or []
+
     try:
-        if photo_data is None:
-            cursor.execute('''
-                UPDATE Users
-                SET user_name = ?, email = ?, dietary_preferences = ?, cooking_level = ?, allergies = ?, 
-                    subscription_status = ?
-                WHERE id = ?
-            ''', (
-                user_name,
-                email,
-                json.dumps(dietary_preferences),  # Only dietary_preferences as JSON
-                int(cooking_level),
-                json.dumps(allergies),  # allergies is stored as TEXT, no need for json.dumps
-                subscription_status,
-                user_id
-            ))
-        else :
-            cursor.execute('''
-                            UPDATE Users
-                            SET user_name = ?, email = ?, dietary_preferences = ?, cooking_level = ?, allergies = ?, 
-                                subscription_status = ?, photo_data = ?
-                            WHERE id = ?
-                        ''', (
-                user_name,
-                email,
-                json.dumps(dietary_preferences),  # Only dietary_preferences as JSON
-                int(cooking_level),
-                json.dumps(allergies),  # allergies is stored as TEXT, no need for json.dumps
-                subscription_status,
-                photo_data,
-                user_id
-            ))
+        # update user
+        cursor.execute("""
+            Update users 
+            set user_name = ?, email = ?, cooking_level = ?, photo_data = ?
+            where id = ?
+        """, (user_name, email, cooking_level, photo_data, user_id))
+
+        cursor.execute(
+            "DELETE FROM user_dietary_preference WHERE user_id = ?",
+            (user_id,)
+        )
+        for pref in dietary_preferences:
+            cursor.execute("""
+                        INSERT INTO user_dietary_preference (user_id, preference)
+                        VALUES (?, ?)
+                    """, (user_id, pref))
+
+        cursor.execute(
+            "DELETE FROM user_allergy WHERE user_id = ?",
+            (user_id,)
+        )
+        for allergy in allergies:
+            cursor.execute("""
+                        INSERT INTO user_allergy (user_id, allergy)
+                        VALUES (?, ?)
+                    """, (user_id, allergy))
         conn.commit()
     except Exception as e:
         print("⚠️ Update failed, rolling back:", e)
         conn.rollback()
     finally:
         conn.close()
+        return get_user_by_id(user_id)
 
 def delete_user_by_id(user_id):
     conn = get_db_connection()
-    conn.execute('DELETE FROM Users WHERE id = ?', (user_id,))
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
     conn.commit()
     conn.close()
 
@@ -237,9 +173,6 @@ def create_ingredient(user_id: int,
                       name: str,
                       store: str = None,
                       unit: str = None,
-                      nutritional_label: dict = None,
-                      alternative_stores: list = None,
-                      common_substitutes: list = None,
                       seasonal_availability: str = None) -> int:
     """
     Inserts a new ingredient into the Ingredient table for a given user.
@@ -261,27 +194,19 @@ def create_ingredient(user_id: int,
         sqlite3.IntegrityError: If the ingredient name already exists for this user.
     """
     # Serialize JSON fields if provided
-    nutri_json = json.dumps(nutritional_label) if nutritional_label is not None else None
-    alt_stores_json = json.dumps(alternative_stores) if alternative_stores is not None else None
-    subs_json = json.dumps(common_substitutes) if common_substitutes is not None else None
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         '''
         INSERT INTO Ingredient (
-            user_id, name, store, unit,
-            nutritional_label, alternative_stores,
-            common_substitutes, seasonal_availability
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            user_id, name, store, unit, seasonal_availability
+        ) VALUES (?, ?, ?, ?, ?)
         ''', (
             user_id,
             name,
             store,
             unit,
-            nutri_json,
-            alt_stores_json,
-            subs_json,
             seasonal_availability
         )
     )
@@ -309,9 +234,8 @@ def get_ingredients(user_id: int, name_query: str):
     # and wrap name_query in % for partial matches.
     sql = """
         SELECT *
-          FROM Ingredient
-         WHERE user_id = ?
-           AND LOWER(name) LIKE LOWER(?)
+        FROM ingredient
+        WHERE user_id = ? AND LOWER(name) LIKE LOWER(?)
     """
     pattern = f"%{name_query.strip()}%"
     rows = cursor.execute(sql, (user_id, pattern)).fetchone()
@@ -344,7 +268,7 @@ def create_recipe_ingredient(recipe_id: int,
     try:
         cursor.execute(
             '''
-            INSERT INTO RecipeIngredient (
+            INSERT INTO recipe_ingredient (
                 recipe_id, ingredient_id, quantity, unit
             ) VALUES (?, ?, ?, ?)
             ''', (
@@ -390,7 +314,7 @@ def delete_recipe_ingredient(recipe_id: int):
 #########################################
 def create_recipe(user_id: int, name: str, preparation_steps: list, preparation_time: str, cooking_time: str,
                   origin: str = 'To be known', difficulty: int = 1, serving_size: int = 1,
-                  source: str = 'Unknown', photos: list = None):
+                  source: str = 'Unknown', photo_data: list = None) -> int:
 
     """
      Insert a new recipe into the Recipe table.
@@ -405,51 +329,40 @@ def create_recipe(user_id: int, name: str, preparation_steps: list, preparation_
      - cooking_time: Cooking time in HH:MM:SS format
      - serving_size: Number of servings
      - source: Recipe source (e.g., 'AI' or 'self')
-     - photos: List of up to 4 photo URLs or identifiers
-
-     Raises:
-     - ValueError: If difficulty or number of photos is out of allowed range
+     - photos: List of up to 4 photo URLs or identifiers -- update-- only 1 photo per recipe now
      """
-
-    # Validate inputs
-    if not (1 <= difficulty <= 5):
-        raise ValueError("Difficulty must be between 1 and 5")
-    if len(photos) > 4:
-        raise ValueError("A maximum of 4 photos is allowed")
-
-    photos_json = json.dumps(photos)
-    steps_json = json.dumps(preparation_steps)
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    if photos_json is None:
-        cursor.execute('''
-                 INSERT INTO Recipe (
-                     user_id, name, origin, difficulty, preparation_steps, preparation_time, cooking_time, 
-                     serving_size, source, photos_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                       (user_id, name, origin, difficulty, steps_json, preparation_time,
-                        cooking_time, serving_size, source, photos_json)
-                )
-    else:
-        cursor.execute('''
-             INSERT INTO Recipe (
-                 user_id, name, origin, difficulty, preparation_steps, preparation_time, cooking_time, 
-                 serving_size, source, photos_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                       (user_id, name, origin, difficulty, steps_json, preparation_time,
-                        cooking_time, serving_size, source, photos_json)
-            )
+    cursor.execute(
+        '''INSERT INTO recipe (
+                        user_id, name, origin, difficulty,
+                        preparation_time, cooking_time,
+                        serving_size, source, photo
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+    (user_id, name, origin, difficulty, preparation_time, cooking_time, serving_size, source,
+        photo_data)
+    )
+    recipe_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
-    return cursor.lastrowid  # Return new recipe ID
+    for idx, step in enumerate(preparation_steps, start=1):
+                insert_recipe_steps(recipe_id, idx, step)
+
+    return recipe_id
 
 
-def get_all_recipes():
+
+def get_all_recipes(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    recipes = cursor.execute('SELECT * FROM recipe').fetchall()
+    recipes = cursor.execute("""
+        SELECT r.id, r.name, r.origin, r.photo
+        FROM recipe AS r
+        WHERE r.user_id = ?
+        ORDER BY r.id
+    """, (user_id,)).fetchall()
     conn.close()
     return recipes
 
@@ -470,24 +383,115 @@ def get_recipe_by_name(name):
     return None
 
 def update_recipe(name, origin, difficulty, preparation_steps, preparation_time, cooking_time,
-                  serving_size, source, photos, recipe_id):
+                  serving_size, source, photo_data:bytes, recipe_id):
 
-    if not (1 <= difficulty <= 5):
-        raise ValueError("difficulty must be between 1 and 5")
-    if not isinstance(preparation_steps, list):
-        raise ValueError("preparation_steps must be a list")
-
-    # ensure at most 4 photos
-    photos = list(photos)[:4]
-
+    # need to handle ingredient update
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE recipe
-        SET name = ?, origin = ?, difficulty = ?, preparation_steps = ?, preparation_time = ?, 
-        cooking_time = ?, serving_size = ?, source = ?, photos_json= ? 
-        WHERE id = ?''', (name, origin, difficulty, json.dumps(preparation_steps),
-                      preparation_time, cooking_time, serving_size, source, json.dumps(photos), recipe_id))
+
+    if photo_data is not None:
+            # user uploaded a new image → overwrite
+            cursor.execute('''
+                UPDATE recipe
+                SET name = ?, origin = ?, difficulty = ?, preparation_time = ?, cooking_time = ?, 
+                    serving_size = ?, source = ?, photo = ?
+                WHERE id = ?
+            ''', (name, origin, difficulty, preparation_time, cooking_time, serving_size, source,
+                  photo_data, recipe_id)
+            )
+    else:
+        # no new image → leave photo untouched
+        cursor.execute('''
+            UPDATE recipe
+                SET name = ?, origin = ?, difficulty = ?, preparation_time = ?, cooking_time = ?, 
+                    serving_size = ?, source = ?
+                WHERE id = ?
+            ''', (name, origin, difficulty, preparation_time, cooking_time, serving_size,
+            source, recipe_id)
+        )
+    conn.commit()
+
+    delete_recipe_steps(recipe_id)
+
+    for idx, step in enumerate(preparation_steps, start=1):
+        insert_recipe_steps(recipe_id, idx, step)
+
+    conn.close()
+
+def insert_recipe_steps(recipe_id, step_number, description):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO recipe_step (recipe_id, step_number, description)
+        VALUES (?, ?, ?)""", (recipe_id, step_number, description))
+    conn.commit()
+    conn.close()
+
+def delete_recipe_steps(recipe_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        Delete FROM recipe_step where recipe_id = ?""", (recipe_id,))
+    conn.commit()
+    conn.close()
+
+def get_recipe_steps(recipe_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    rows = cursor.execute("""
+        SELECT description
+          FROM recipe_step
+         WHERE recipe_id = ?
+         ORDER BY step_number
+    """, (recipe_id,)).fetchall()
+    conn.close()
+    return [r['description'] for r in rows]
+
+def get_recipe_in_meal(meal_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    rows = cursor.execute("""
+        Select r.id, r.name, r.origin, r.photo, r.difficulty, r.cooking_time, r.serving_size, r.source
+        FROM recipe AS r
+        Join meal_recipe AS mr ON r.id = mr.recipe_id
+        WHERE mr.meal_id = ?
+    """, (meal_id,)).fetchall()
+    conn.close()
+    return rows
+
+def get_recipe_ids_for_meal(meal_id: int) -> list[int]:
+    conn = get_db_connection()
+    rows = conn.execute(
+        "SELECT recipe_id FROM meal_recipe WHERE meal_id = ?",
+        (meal_id,)
+    ).fetchall()
+    conn.close()
+    return [r["recipe_id"] for r in rows]
+
+def delete_recipes_from_meal(meal_id: int) -> None:
+    conn = get_db_connection()
+    conn.execute(
+        "DELETE FROM meal_recipe WHERE meal_id = ?",
+        (meal_id,)
+    )
+    conn.commit()
+    conn.close()
+
+def delete_recipe_from_meal_recipe(meal_id: int, recipe_id:int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        DELETE FROM meal_recipe WHERE meal_id = ? and recipe_id = ?
+    """, (meal_id, recipe_id))
+    conn.commit()
+    conn.close()
+
+def add_recipe_to_meal(meal_id: int, recipe_id: int) -> None:
+    conn = get_db_connection()
+    conn.execute(
+        "INSERT INTO meal_recipe (meal_id, recipe_id) VALUES (?, ?)",
+        (meal_id, recipe_id)
+    )
     conn.commit()
     conn.close()
 
@@ -495,7 +499,7 @@ def update_recipe(name, origin, difficulty, preparation_steps, preparation_time,
 # ----------- Meals Related -----------#
 #########################################
 
-def create_meal(user_id: int, meal_title: str, recipe_ids: list, meal_time: str, scheduled_datetime: str) -> int:
+def create_meal(user_id: int, meal_title: str, recipe_ids: list[int], meal_time: str) -> int:
     """
     Creates a new meal for a user, with a list of recipe IDs, meal time, and scheduled datetime.
 
@@ -509,18 +513,25 @@ def create_meal(user_id: int, meal_title: str, recipe_ids: list, meal_time: str,
     Returns:
         int: ID of the newly created meal.
     """
-    recipe_ids_json = json.dumps(recipe_ids)  # Store recipe IDs as a JSON array
 
     conn = get_db_connection()
     cursor = conn.cursor()
+
     cursor.execute(''' 
-        INSERT INTO Meal (recipe_ids, user_id, meal_title, meal_time, scheduled_datetime)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (recipe_ids_json, user_id, meal_title, meal_time, scheduled_datetime))
+            INSERT INTO Meal (user_id, meal_title, meal_time)
+            VALUES (?, ?, ?)
+        ''', (user_id, meal_title, meal_time))
+    # cursor.execute('''
+    #     INSERT INTO Meal (recipe_ids, user_id, meal_title, meal_time, scheduled_datetime)
+    #     VALUES (?, ?, ?, ?, ?)
+    # ''', (recipe_ids_json, user_id, meal_title, meal_time, scheduled_datetime))
 
     conn.commit()
     meal_id = cursor.lastrowid
     conn.close()
+
+    for rid in recipe_ids:
+        add_recipe_to_meal(meal_id, rid)
 
     return meal_id
 
@@ -538,7 +549,12 @@ def delete_meal(meal_id: int) -> None:
     conn.commit()
     conn.close()
 
-def update_meal(meal_id: int, recipe_ids: list = None, meal_time: str = None, scheduled_datetime: str = None) -> None:
+def update_meal(meal_id: int,
+                recipe_ids: list = None,
+                meal_time: str = None,
+                meal_title: str = None,
+                # , scheduled_datetime: str = None
+                ) -> None:
     """
     Updates a meal with new information such as recipes, meal time, or scheduled datetime.
 
@@ -555,6 +571,10 @@ def update_meal(meal_id: int, recipe_ids: list = None, meal_time: str = None, sc
     updates = []
     params = []
 
+    if meal_title is not None:
+        updates.append("meal_title = ?")
+        params.append(meal_title)
+
     if recipe_ids is not None:
         updates.append("recipe_ids = ?")
         params.append(json.dumps(recipe_ids))  # Store recipe IDs as a JSON array
@@ -563,9 +583,9 @@ def update_meal(meal_id: int, recipe_ids: list = None, meal_time: str = None, sc
         updates.append("meal_time = ?")
         params.append(meal_time)
 
-    if scheduled_datetime is not None:
-        updates.append("scheduled_datetime = ?")
-        params.append(scheduled_datetime)
+    # if scheduled_datetime is not None:
+    #     updates.append("scheduled_datetime = ?")
+    #     params.append(scheduled_datetime)
 
     # Combine the update fields and parameters
     set_clause = ", ".join(updates)
@@ -605,12 +625,12 @@ def view_meal(meal_id: int):
 
     return None
 
-def get_all_meals():
+def get_all_meals(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
     # Select all rows from the Meal table
-    meals = cursor.execute('SELECT * FROM Meal').fetchall()
+    meals = cursor.execute('SELECT * FROM meal where user_id = ?', (user_id,)).fetchall()
 
     conn.close()
 
@@ -631,3 +651,169 @@ def get_meal(meal_id: int):
         return None
 
     return dict(meal)
+
+def get_meal_by_name(user_id, meal_title: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Select all rows from the Meal table
+    meal = cursor.execute("""
+        SELECT meal_id FROM Meal
+        where user_id = ? and meal_title = ?
+    """, (user_id, meal_title)).fetchone()
+
+    conn.close()
+    if not meal:
+        return None
+
+    return meal[0]
+
+#########################################
+# ----------- Meal Plan Related -----------#
+#########################################
+def create_meal_plan(user_id, title, start_date, end_date, goals):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO MealPlan
+        (user_id, title, start_date, end_date, goals)
+        VALUES (?, ?, ?, ?, ?)""", (user_id, title, start_date, end_date, goals)
+    )
+
+    conn.commit()
+    plan_id = cursor.lastrowid
+    conn.close()
+    return plan_id
+
+def create_meal_plan_with_schedule(user_id, title, start_date, end_date, goals, schedule_map):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO meal_plan (user_id, title, start_date, end_date, goals)
+            VALUES (?, ?, ?, ?, ?)""", (user_id, title, start_date, end_date, goals)
+        )
+        plan_id = cursor.lastrowid
+
+        for meal_id, sched in schedule_map.items():
+            cursor.execute("""
+            INSERT INTO meal_plan_meal(meal_plan_id, meal_id, scheduled_datetime)
+            VALUES (?,?, ?)""", (plan_id, meal_id, sched))
+        conn.commit()
+        return plan_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+def add_meal_to_plan(meal_plan_id, meal_id, scheduled_datetime):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO meal_plan_meal
+        (meal_plan_id, meal_id, scheduled_datetime)
+        VALUES (?, ?, ?)""", (meal_plan_id, meal_id, scheduled_datetime))
+    conn.commit()
+    conn.close()
+
+def get_meal_plan(meal_plan_id, user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    plan_row = cursor.execute(
+        'SELECT * FROM meal_plan WHERE meal_plan_id = ? and user_id = ?',
+        (meal_plan_id, user_id)
+    ).fetchone()
+
+    if not plan_row:
+        return None
+    return dict(plan_row)
+
+def get_meal_plan_by_title(title):
+    conn = get_db_connection()
+    row = conn.execute(
+      'SELECT meal_plan_id, user_id FROM MealPlan WHERE title = ?',
+      (title,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_meal_plan_meals_and_schedules(meal_plan_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    row = cursor.execute("""
+                SELECT m.meal_id, m.meal_title, ppm.scheduled_datetime
+                FROM meal_plan_meal AS ppm
+                JOIN meal AS m ON ppm.meal_id = m.meal_id
+                WHERE ppm.meal_plan_id = ?
+                ORDER BY ppm.scheduled_datetime
+            """, (meal_plan_id,)).fetchall()
+
+    return row
+
+def get_meal_plan_by_user_and_title(user_id: int, title: str):
+    conn = get_db_connection()
+    row = conn.execute(
+        'SELECT meal_plan_id FROM meal_plan WHERE user_id = ? AND title = ?',
+        (user_id, title)
+    ).fetchone()
+    conn.close()
+    return row['meal_plan_id'] if row else None
+
+def delete_meal_plan_and_meal_plan_meals_by_id(meal_plan_id: int):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # first remove all the schedule entries
+    cur.execute('DELETE FROM meal_plan_meal WHERE meal_plan_id = ?', (meal_plan_id,))
+    # then remove the plan itself
+    cur.execute('DELETE FROM meal_plan WHERE meal_plan_id = ?', (meal_plan_id,))
+    conn.commit()
+    conn.close()
+
+def get_all_meal_plans(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    rows = cursor.execute("""SELECT * FROM meal_plan where user_id = ?
+        ORDER BY meal_plan_id""", (user_id,)).fetchall()
+    conn.close()
+    return rows
+
+def update_meal_plan(title, start_date, end_date, goals, meal_plan_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+               UPDATE meal_plan
+                  SET title = ?, start_date = ?, end_date = ?, goals = ?
+                WHERE meal_plan_id = ?
+           ''', (title, start_date, end_date, goals, meal_plan_id))
+
+    conn.commit()
+    conn.close()
+
+def update_meal_plan_meal_schedule(meal_plan_id: int, meal_id: int, scheduled_datetime: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE meal_plan_meal
+        SET scheduled_datetime = ?
+        WHERE meal_plan_id = ? and meal_id = ?""",
+        (scheduled_datetime, meal_plan_id, meal_id)
+    )
+    conn.commit()
+    conn.close()
+
+def delete_meal_plan_meal(meal_plan_id, meal_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM meal_plan_meal WHERE meal_plan_id = ? and meal_id = ?',
+                   (meal_plan_id, meal_id)
+    )
+    conn.commit()
+    conn.close()
+

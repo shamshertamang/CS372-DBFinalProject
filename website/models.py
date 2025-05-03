@@ -19,7 +19,6 @@ class User(UserMixin):
             self.allergies = json.loads(user_row['allergies']) if user_row['allergies'] else []
         except:
             self.allergies = []
-        self.subscription_status = user_row['subscription_status']
         self.photo_data = user_row['photo_data']
 
     @property

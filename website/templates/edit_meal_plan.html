@@ -1,0 +1,149 @@
+<!-- edit_meal_plan.html -->
+
+{% extends "base.html" %}
+{% block title %}Edit Meal Plan{% endblock %}
+
+{% block profile %}
+  {% if user.is_authenticated %}
+    <a class="nav-item nav-link" href="{{ url_for('views.profile_page') }}">Profile</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <h1 class="text-center my-4">Edit Meal Plan</h1>
+  <form method="POST" class="container mt-4">
+
+    <!-- Plan Title -->
+    <div class="form-group">
+      <label for="plan_title">Plan Title</label>
+      <input
+        type="text"
+        class="form-control"
+        id="plan_title"
+        name="plan_title"
+        value="{{ plan.title }}"
+        required
+      >
+    </div>
+
+    <!-- Start / End Dates -->
+    <div class="form-row">
+      <div class="form-group col-md-6">
+        <label for="start_date">Start Date</label>
+        <input
+          type="date"
+          class="form-control"
+          id="start_date"
+          name="start_date"
+          value="{{ plan.start_date }}"
+          required
+        >
+      </div>
+      <div class="form-group col-md-6">
+        <label for="end_date">End Date</label>
+        <input
+          type="date"
+          class="form-control"
+          id="end_date"
+          name="end_date"
+          value="{{ plan.end_date }}"
+          required
+        >
+      </div>
+    </div>
+
+    <!-- Goals -->
+    <div class="form-group">
+      <label for="goals">Goals</label>
+      <textarea
+        class="form-control"
+        id="goals"
+        name="goals"
+        rows="3"
+        placeholder="What do you want to achieve with this plan?"
+      >{{ plan.goals }}</textarea>
+    </div>
+
+    <!-- Meals + per-meal datetime pickers -->
+    <div class="form-group">
+      <label>Select Meals &amp; Schedule Them</label>
+      {% if meals %}
+        {% for meal in meals %}
+          {% set matches = scheduled_meals
+               | selectattr('meal_id', 'equalto', meal.meal_id)
+               | list %}
+          {% set checked = matches | length > 0 %}
+          {% set dt_value = matches[0].scheduled_datetime if checked else '' %}
+          <div class="form-row align-items-center mb-2">
+            <div class="col-auto">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                name="meal_ids"
+                id="meal-{{ meal.meal_id }}"
+                value="{{ meal.meal_id }}"
+                {% if checked %}checked{% endif %}
+              >
+            </div>
+            <div class="col">
+              <label class="form-check-label" for="meal-{{ meal.meal_id }}">
+                {{ meal.meal_title }}
+              </label>
+            </div>
+            <div class="col-auto">
+              {% set matches = scheduled_meals
+                 | selectattr('meal_id', 'equalto', meal.meal_id)
+                 | list %}
+              {% set checked = matches | length > 0 %}
+            {% if checked %}
+              {# strip off seconds and swap the space for “T” #}
+              {% set raw = matches[0].scheduled_datetime %}
+              {% set dt_value = raw[:16].replace(' ', 'T') %}
+            {% else %}
+              {% set dt_value = '' %}
+            {% endif %}
+              <input
+                type="datetime-local"
+                class="form-control"
+                name="schedule_{{ meal.meal_id }}"
+                id="sched-{{ meal.meal_id }}"
+                {% if not checked %}disabled{% endif %}
+                value="{{ dt_value }}"
+              >
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted">
+          No meals yet—<a href="{{ url_for('views.add_meal') }}">Add one first</a>.
+        </p>
+      {% endif %}
+
+      <div class="mt-2">
+        <a href="{{ url_for('views.add_meal') }}" class="btn btn-link">
+          + Need more meals for your plan?
+        </a>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary">
+        Update Meal Plan
+      </button>
+      <a href="{{ url_for('views.view_meal_plan', meal_plan_id=plan.meal_plan_id) }}"
+         class="btn btn-secondary ml-2">Cancel</a>
+    </div>
+  </form>
+
+  <script>
+    // mirror the add-page logic
+    document.querySelectorAll('input[name="meal_ids"]').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const dt = document.getElementById('sched-' + e.target.value);
+        dt.disabled = !e.target.checked;
+        if (!e.target.checked) dt.value = '';
+      });
+    });
+  </script>
+{% endblock %}

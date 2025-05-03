@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Edit Meal{% endblock %}
+{% block profile %}
+  {% if user.is_authenticated %}
+    <a class="nav-item nav-link" href="{{ url_for('views.profile_page') }}">Profile</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<h1 align="center">Edit Meal</h1>
+<form method="POST" class="container mt-4">
+  <div class="form-group">
+    <label for="meal_title">Meal Title</label>
+    <input type="text" class="form-control" id="meal_title" name="meal_title" value="{{ meal.meal_title }}" required>
+  </div>
+  <div class="form-group">
+    <label for="meal_time">Meal Time</label>
+    <select class="form-control" id="meal_time" name="meal_time" required>
+      <option value="Breakfast" {% if meal.meal_time == 'Breakfast' %}selected{% endif %}>Breakfast</option>
+      <option value="Lunch" {% if meal.meal_time == 'Lunch' %}selected{% endif %}>Lunch</option>
+      <option value="Dinner" {% if meal.meal_time == 'Dinner' %}selected{% endif %}>Dinner</option>
+    </select>
+  </div>
+<!--  <div class="form-group">-->
+<!--    <label for="scheduled_datetime">Scheduled Date and Time</label>-->
+<!--    <input type="datetime-local" class="form-control" id="scheduled_datetime" name="scheduled_datetime" value="{{ meal.scheduled_datetime|replace(' ', 'T') }}" required>-->
+<!--  </div>-->
+  <div class="form-group">
+    <label>Select Recipes</label>
+    {% for recipe in recipes %}
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="recipe_ids" id="recipe-{{ recipe.id }}" value="{{ recipe.id }}" {% if recipe.id in selected_recipe_ids %}checked{% endif %}>
+      <label class="form-check-label" for="recipe-{{ recipe.id }}">{{ recipe.name }}</label>
+    </div>
+    {% endfor %}
+    <div class="mt-2">
+      <a href="{{ url_for('views.add_recipe') }}" class="btn btn-link">
+        Need more recipes for the meal?
+      </a>
+    </div>
+  </div>
+
+
+
+  <div class="d-flex mt-4">
+    <button type="submit" class="btn btn-success flex-fill mr-2">Save Changes</button>
+    <a href="{{ url_for('views.view_meal', meal_id=meal.meal_id) }}" class="btn btn-secondary flex-fill">Cancel</a>
+  </div>
+</form>
+{% endblock %}

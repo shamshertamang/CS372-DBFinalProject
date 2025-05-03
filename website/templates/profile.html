@@ -65,11 +65,6 @@
                 <div id="allergiesDisplay" class="mt-2"></div>
             </div>
 
-            <div class="form-group text-left">
-                <label for="subscription_status"><strong>Subscription Status</strong></label>
-                <input type="text" id="subscription_status" name="subscription_status" class="form-control" value="{{ user.subscription_status }}" disabled>
-            </div>
-
             <div class="text-center mt-3">
                 <button type="button" id="editBtn" class="btn btn-outline-primary">Edit</button>
                 <button type="submit" id="saveBtn" class="btn btn-success d-none">Save</button>
@@ -116,7 +111,11 @@
         allergiesInput.value = allergiesTags.join(',');
 
         function renderTags() {
+            // tagsDisplay.innerHTML = '';
+            // clear out and immediately sync the hidden input
+            dietaryPrefsInput.value = tags.join(',');
             tagsDisplay.innerHTML = '';
+
             const isEditing = !dietaryTagsInput.readOnly;
 
             tags.forEach((tag, i) => {
@@ -131,7 +130,7 @@
                     close.style.cursor = 'pointer';
                     close.onclick = () => {
                         tags.splice(i, 1);
-                        dietaryPrefsInput.value = tags.join(',');
+                        // dietaryPrefsInput.value = tags.join(',');
                         renderTags();
                     };
                     badge.appendChild(close);
@@ -142,7 +141,11 @@
         }
 
         function renderAllergiesTags() {
+            // allergiesDisplay.innerHTML = '';
+            // clear out and immediately sync the hidden input
+            allergiesInput.value = allergiesTags.join(',');
             allergiesDisplay.innerHTML = '';
+
             const isEditing = !allergiesTagsInput.readOnly;
 
             allergiesTags.forEach((tag, i) => {
@@ -157,7 +160,7 @@
                     close.style.cursor = 'pointer';
                     close.onclick = () => {
                         allergiesTags.splice(i, 1);
-                        allergiesInput.value = allergiesTags.join(',');
+                        // allergiesInput.value = allergiesTags.join(',');
                         renderAllergiesTags();
                     };
                     badge.appendChild(close);

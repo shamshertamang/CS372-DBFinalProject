@@ -1,0 +1,111 @@
+@startuml
+hide circle
+
+' Users table
+entity users {
+  * id : INTEGER <<PK>>
+  * user_name : TEXT [UNIQUE, NOT NULL]
+    name : TEXT
+  * email : TEXT [UNIQUE, NOT NULL]
+    password : TEXT
+    cooking_level : INTEGER <<CHECK 1..5>>
+    photo_data : BLOB
+}
+
+' Dietary preferences
+entity user_dietary_preference {
+  * user_id : INTEGER <<FK users.id>>
+  * preference : TEXT
+}
+
+' Allergies
+entity user_allergy {
+  * user_id : INTEGER <<FK users.id>>
+  * allergy : TEXT
+}
+
+' Recipes
+entity recipe {
+  * id : INTEGER <<PK>>
+  * user_id : INTEGER <<FK users.id>>
+    name : TEXT
+    origin : TEXT
+    difficulty : INTEGER <<CHECK 1..5>>
+    preparation_time : TEXT
+    cooking_time : TEXT
+    serving_size : INTEGER
+    source : TEXT
+    photo : BLOB
+}
+
+' Recipe steps
+entity recipe_step {
+  * id : INTEGER <<PK>>
+  * recipe_id : INTEGER <<FK recipe.id>>
+    step_number : INTEGER
+    description : TEXT
+}
+
+' Ingredients
+entity ingredient {
+  * id : INTEGER <<PK>>
+  * user_id : INTEGER <<FK users.id>>
+    name : TEXT
+    store : TEXT
+    unit : TEXT
+    seasonal_availability : TEXT
+}
+
+' Recipe ingredients
+entity recipe_ingredient {
+  * id : INTEGER <<PK>>
+    recipe_id : INTEGER <<FK recipe.id>>
+    ingredient_id : INTEGER <<FK ingredient.id>>
+    quantity : TEXT
+    unit : TEXT
+}
+
+' Meals
+entity meal {
+  * meal_id : INTEGER <<PK>>
+    meal_title : TEXT
+  * user_id : INTEGER <<FK users.id>>
+    meal_time : TEXT <<CHECK {'Breakfast','Lunch','Dinner','Snack'}>>
+}
+
+entity meal_recipe {
+  * meal_id : INTEGER <<FK meal.meal_id>>
+  * recipe_id : INTEGER <<FK recipe.id>>
+}
+
+' Meal plans
+entity meal_plan {
+  * meal_plan_id : INTEGER <<PK>>
+    title : TEXT
+  * user_id : INTEGER <<FK users.id>>
+    start_date : TEXT
+    end_date : TEXT
+    goals : TEXT
+}
+
+entity meal_plan_meal {
+  * meal_plan_id : INTEGER <<FK meal_plan.meal_plan_id>>
+  * meal_id : INTEGER <<FK meal.meal_id>>
+    scheduled_datetime : TEXT
+}
+
+' Relationships
+users ||--o{ user_dietary_preference : "has"
+users ||--o{ user_allergy : "has"
+users ||--o{ recipe : "creates"
+recipe ||--o{ recipe_step : "steps"
+users ||--o{ ingredient : "owns"
+recipe ||--o{ recipe_ingredient : "includes"
+ingredient ||--o{ recipe_ingredient : "used in"
+users ||--o{ meal : "plans"
+meal ||--o{ meal_recipe : "contains"
+recipe ||--o{ meal_recipe : "used in"
+users ||--o{ meal_plan : "authors"
+meal_plan ||--o{ meal_plan_meal : "schedules"
+meal ||--o{ meal_plan_meal : "used in"
+@enduml

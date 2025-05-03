@@ -51,7 +51,7 @@
 
       <!-- new photos upload block -->
     <div class="form-group">
-      <label for="photos">Upload Recipe Photos (max 4)</label>
+      <label for="photos">Upload Recipe Photos</label>
       <input
         type="file"
         class="form-control"
@@ -59,7 +59,7 @@
         name="photos"
         accept="image/*"
         multiple
-        onchange="if(this.files.length>4){ alert('You can only upload up to 4 images.'); this.value=null; }"
+        onchange="if(this.files.length>1){ alert('You can only upload 1 image.'); this.value=null; }"
       >
     </div>
 

@@ -3,7 +3,7 @@
 from flask import Blueprint, render_template, request, flash, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, login_required, logout_user, current_user
-from .database import get_user_by_email, create_user
+from .database import get_user_by_email, create_user, get_user_by_username
 import re
 
 auth = Blueprint('auth', __name__)
@@ -21,7 +21,8 @@ def login():
         user = get_user_by_email(email)
 
         if user:
-            if check_password_hash(user.password, password):
+            # if check_password_hash(user.password, password):
+            if user.password == password:
                 flash('Logged in successfully!', category='success')
                 login_user(user, remember=True)
                 return redirect(url_for('views.home'))
@@ -49,6 +50,9 @@ def sign_up():
         if not is_valid_email(email):
             flash('Invalid email format.', category='error')
             return redirect(url_for('auth.sign_up'))
+        if get_user_by_username(user_name):
+            flash('Username already in use.', category='error')
+            return redirect(url_for('auth.sign_up'))
 
         existing_user = get_user_by_email(email)
         if existing_user:
@@ -62,7 +66,8 @@ def sign_up():
         elif len(password1) < 7:
             flash('Password must be at least 7 characters.', category='error')
         else:
-            hashed_password = generate_password_hash(password1, method='scrypt')
+            # hashed_password = generate_password_hash(password1, method='scrypt')
+            hashed_password = password1
             new_user = create_user(email, user_name, hashed_password)
             login_user(new_user, remember=True)
             flash('Account created!', category='success')

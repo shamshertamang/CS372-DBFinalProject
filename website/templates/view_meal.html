@@ -8,19 +8,21 @@
 {% endblock %}
 
 {% block content %}
-<h1 align="center">{{ meal.meal_title }}</h1>
+<h1 class="text-center">{{ meal.meal_title }}</h1>
 
 <!-- Meal Details Section -->
 <div class="container mt-4">
   <div class="row">
     <!-- LEFT column: meal metadata -->
+    {#
     <div class="col-md-4 text-left">
       <p><strong>Meal Time:</strong> {{ meal.meal_time }}</p>
       <p><strong>Scheduled Date and Time:</strong> {{ meal.scheduled_datetime | datetimeformat }}</p>
     </div>
+    #}
 
     <!-- CENTER column: Recipes -->
-    <div class="col-md-4 text-left">
+    <div class="col-md-6 text-left">
       <!-- List of Recipes-->
       <h3>Recipes Included:</h3>
       <ol class="mb-0">
@@ -31,7 +33,7 @@
     </div>
 
       <!-- Aggregated Unique Ingredients -->
-    <div class = "col-md-4 text-left">
+    <div class = "col-md-6 text-left">
       <h3>Ingredients for this Meal:</h3>
       <ul>
         {% for ingredient in unique_ingredients %}
@@ -39,21 +41,25 @@
         {% endfor %}
       </ul>
     </div>
-
+  </div>
       <!-- Preparation Steps by Recipe -->
-    <h3>Preparation Steps:</h3>
-      <div class="d-flex flex-row flex-wrap">
+    <div class="row mb-3">
+     <div class="col-12">
+       <h3>Preparation Steps:</h3>
+     </div>
+   </div>
+
+   <div class="row g-3">
         {% for recipe in meal_recipes %}
-        <div class="p-3" style="min-width: 250px;">
+        <div class="col-12 col-md-6 col-lg-4">
           <h4>{{ recipe.name }}</h4>
-          <ol>
+          <ol class = "mb-0">
             {% for step in recipe.preparation_steps %}
             <li>{{ step }}</li>
             {% endfor %}
           </ol>
         </div>
         {% endfor %}
-      </div>
   </div>
 
   <!-- buttons row -->
