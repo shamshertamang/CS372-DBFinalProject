@@ -11,14 +11,14 @@ Food Book is a recipe and meal plan preparation app that will allow users to cre
 
 This flask based application allows different users to create, update, access and delete recipes, meals and meal plans at the convinience. The app also supports user profiles, updates, views and delete of user profiles.
 
-### [Live Demo link](#yet to be added) The live demo will be linked on May 3 before 4 pm
+### [Live Demo link](#yet-to-be-added) The live demo will be linked on May 3 before 4 pm
 
 ---
 
 ## Table of Contents
  
 - [Features](#features)  
-- [Languages and Frameworks Used](#Languages and Frameworks Used)
+- [Languages and Frameworks Used](#languages-and-frameworks-used)
 - [Getting Started](#getting-started)  
   - [Prerequisites](#prerequisites)  
   - [Installation and Running](#installation-and-running)
@@ -153,7 +153,7 @@ API Endpoint documentation can be found in the root directory under API_ENDPOINT
 
 ---
 
-![FoodBook ERD](ER-Diagrams/foodbook-erd.png)
+![FoodBook ERD](ER-diagrams/foodbook-erd.png)
 
 ---
 
