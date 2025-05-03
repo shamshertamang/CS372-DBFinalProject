@@ -1,5 +1,7 @@
 # FoodBook Data Dictionary
 
+This data dictionary was made before I started the project. Refer to the schema in ddl.sql for updated schema.
+
 ## Entities
 
 ### 1. User
