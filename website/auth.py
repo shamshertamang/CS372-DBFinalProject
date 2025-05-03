@@ -6,6 +6,15 @@ from flask_login import login_user, login_required, logout_user, current_user
 from .database import get_user_by_email, create_user, get_user_by_username
 import re
 
+
+"""
+This script contains method for login and sign up. This was taken and adapted from techwithtim's flask tutorial which is cited in the README'
+
+The password in these methods down below are not hashed in order to support dml.sql. to use the app for actual use you need to uncomment
+line 33 and line 78 and remove line 79
+"""
+
+
 auth = Blueprint('auth', __name__)
 
 def is_valid_email(email):

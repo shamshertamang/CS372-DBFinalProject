@@ -2,9 +2,24 @@
 
 import sqlite3
 import json
-import os
 from pathlib import Path
 from .models import User
+
+
+"""
+This script contains python code and raw sql queries that help us perform CRUD operations.
+
+The methods in this scripts are order top to down as follows:
+1) get connection
+2) create database
+3) User related CRUD queries
+4) Ingredients related CRUD queries
+5) Recipe ingredients related CRUD queries
+6) meals related CRUD queries
+7) meal plans related CRUD queries
+
+"""
+
 
 
 DB_PATH = Path("instance/database.db")
@@ -366,21 +381,34 @@ def get_all_recipes(user_id):
     conn.close()
     return recipes
 
-def get_recipe(recipe_id):
+def get_recipe(recipe_id, user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    recipe = cursor.execute('SELECT * FROM recipe WHERE id = ?', (recipe_id,)).fetchone()
+    recipe = cursor.execute("""
+        SELECT * FROM recipe 
+        WHERE id = ? and user_id = ?
+        """, (recipe_id, user_id)).fetchone()
     conn.close()
     return recipe
 
-def get_recipe_by_name(name):
+def get_recipe_by_name(user_id, name):
     conn = get_db_connection()
     cursor = conn.cursor()
-    recipe_id = cursor.execute('SELECT id FROM recipe WHERE name = ?', (name,)).fetchone()
+    recipe_id = cursor.execute("""
+        SELECT id FROM recipe
+        WHERE name = ? and user_id = ?""", (name, user_id)
+    ).fetchone()
     conn.close()
     if recipe_id:
         return recipe_id[0]
     return None
+
+def delete_recipe(recipe_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM recipe WHERE id = ?', (recipe_id,))
+    conn.commit()
+    conn.close()
 
 def update_recipe(name, origin, difficulty, preparation_steps, preparation_time, cooking_time,
                   serving_size, source, photo_data:bytes, recipe_id):
@@ -521,11 +549,6 @@ def create_meal(user_id: int, meal_title: str, recipe_ids: list[int], meal_time:
             INSERT INTO Meal (user_id, meal_title, meal_time)
             VALUES (?, ?, ?)
         ''', (user_id, meal_title, meal_time))
-    # cursor.execute('''
-    #     INSERT INTO Meal (recipe_ids, user_id, meal_title, meal_time, scheduled_datetime)
-    #     VALUES (?, ?, ?, ?, ?)
-    # ''', (recipe_ids_json, user_id, meal_title, meal_time, scheduled_datetime))
-
     conn.commit()
     meal_id = cursor.lastrowid
     conn.close()

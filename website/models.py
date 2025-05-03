@@ -3,6 +3,11 @@
 from flask_login import UserMixin
 import json
 
+"""
+This script contains a User class. Part of the script, before adapting it to this application, was taken from techwithtim's flask tutorial which is cited in the ReadMe.'
+"""
+
+
 class User(UserMixin):
     def __init__(self, user_row):
         self.id = user_row['id']

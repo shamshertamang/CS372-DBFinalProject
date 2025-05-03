@@ -5,6 +5,12 @@ from flask import Flask
 from flask_login import LoginManager
 from .database import create_database, get_user_by_id
 
+
+""""
+this script is for initialising the app. the script was taken from techwithtim's flask tutorial which is cited in the ReadMe
+"""
+
+
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'hjshjhdjah kjshkjdhjs'

@@ -1,26 +1,37 @@
 # views.py
-from collections import deque
 
 from flask import Blueprint, render_template, request, flash, url_for, redirect
 from flask_login import login_required, current_user, logout_user
 from .database import (
-    get_user_by_id, update_user_profile, delete_user_by_id, get_all_recipes, create_recipe,
-    get_db_connection, get_user_by_email, create_ingredient, create_recipe_ingredient, get_recipe,
-    get_recipe_ingredients, update_recipe, delete_recipe_ingredient, get_ingredients, get_recipe_by_name, create_meal,
-    get_all_meals, get_meal, update_meal, delete_meal as delete_meal_db, get_meal_by_name, create_meal_plan,
-    add_meal_to_plan, get_meal_plan, get_meal_plan_meals_and_schedules,
-    get_meal_plan_by_user_and_title, delete_meal_plan_and_meal_plan_meals_by_id, get_all_meal_plans, update_meal_plan,
-    delete_meal_plan_meal, get_recipe_steps, get_recipe_in_meal, get_recipe_ids_for_meal, delete_recipes_from_meal,
-    add_recipe_to_meal, delete_recipe_from_meal_recipe, update_meal_plan_meal_schedule, create_meal_plan_with_schedule
-)
-import json, re, base64
+    get_all_recipes, get_all_meals, get_all_meal_plans, get_recipe_by_name, create_recipe, get_ingredients,
+    create_ingredient, create_recipe_ingredient, get_recipe, get_recipe_ingredients, update_recipe,
+    delete_recipe_ingredient, get_recipe_steps, get_meal_by_name, create_meal, get_meal, get_recipe_in_meal,
+    update_meal, get_recipe_ids_for_meal, delete_recipe_from_meal_recipe, add_recipe_to_meal,
+    delete_meal as delete_meal_db, get_meal_plan_by_user_and_title, create_meal_plan_with_schedule, get_meal_plan,
+    get_meal_plan_meals_and_schedules, update_meal_plan, delete_meal_plan_meal, add_meal_to_plan,
+    update_meal_plan_meal_schedule, delete_meal_plan_and_meal_plan_meals_by_id, get_user_by_email, update_user_profile,
+    get_user_by_id, delete_user_by_id) # helper methods from database.py
+import re, base64
 
+
+"""
+This script contains all methods and routings for crud operations on recipe, meal, meal plans and user_profile
+
+The methods are ordered in the following order
+1) home routing
+2) CRUD routings for recipe
+3) CRUD routings for meals
+4) CRUD routings for meal plan
+5) CRUD routings for profile
+"""
 
 views = Blueprint('views', __name__)
+
 
 def is_valid_email(email):
     pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
     return re.match(pattern, email)
+
 
 # ----------- Home Page Routing -----------
 @views.route('/', methods=['GET'])
@@ -63,7 +74,7 @@ def add_recipe():
         source = request.form.get('source', '').strip()
         ingredients_raw = request.form.get('ingredients', '')
 
-        index = get_recipe_by_name(name)
+        index = get_recipe_by_name(current_user.id, name)
         if index:
             flash(message='Recipe with this name already exists. You have been directed to edit the recipe.', category='error')
             return redirect(url_for('views.edit_recipe', recipe_id=index))
@@ -133,18 +144,12 @@ def add_recipe():
 @views.route('/delete-recipe/<int:recipe_id>', methods=['POST', 'GET'])
 @login_required
 def delete_recipe(recipe_id):
-    conn = get_db_connection()
-    recipe = conn.execute('SELECT * FROM recipe WHERE id = ?', (recipe_id,)).fetchone()
-
+    recipe = get_recipe(recipe_id, current_user.id)
     if recipe is None:
-        conn.close()
         flash('Recipe not found.', category='error')
         return redirect(url_for('views.home'))
 
-    conn.execute('DELETE FROM recipe WHERE id = ?', (recipe_id,))
-    conn.commit()
-    conn.close()
-
+    delete_recipe(recipe_id=recipe_id)
     flash('Recipe deleted successfully!', category='success')
     return redirect(url_for('views.home'))
 
@@ -241,6 +246,7 @@ def view_recipe(recipe_id):
     return render_template('view_recipe.html', user=current_user, recipe=recipe,
                            preparation_steps=preparation_steps, ingredients=ingredients)
 
+
 # ----------- Meal Related Routing -----------
 @views.route('/add-meal', methods=['GET', 'POST'])
 @login_required
@@ -284,6 +290,7 @@ def add_meal():
 
     return render_template('add_meal.html', user=current_user, recipes=recipes)
 
+
 @views.route('/meal/<int:meal_id>')
 @login_required
 def view_meal(meal_id):
@@ -318,6 +325,7 @@ def view_meal(meal_id):
 
     return render_template('view_meal.html', user=current_user, meal=meal,
                            meal_recipes=meal_recipes, unique_ingredients=unique_ingredients)
+
 
 @views.route('/edit-meal/<int:meal_id>', methods=['GET', 'POST'])
 @login_required
@@ -361,6 +369,7 @@ def edit_meal(meal_id):
                            recipes=all_recipes,
                            selected_recipe_ids=selected)
 
+
 @views.route('/delete-meal/<int:meal_id>', methods=['POST'])
 @login_required
 def delete_meal(meal_id):
@@ -371,6 +380,7 @@ def delete_meal(meal_id):
     except Exception as e:
         flash(f'Error deleting meal: {e}', 'error')
     return redirect(url_for('views.home')+'#meals')
+
 
 # ----------- Meal Plan related Routing -----------
 @views.route('/add-meal-plan', methods=['GET', 'POST'])
@@ -457,6 +467,7 @@ def view_meal_plan(meal_plan_id):
         scheduled_meals=scheduled_meals
     )
 
+
 @views.route('/edit-meal-plan/<int:meal_plan_id>', methods=['GET', 'POST'])
 @login_required
 def edit_meal_plan(meal_plan_id):
@@ -531,6 +542,7 @@ def edit_meal_plan(meal_plan_id):
         scheduled_meals=scheduled_meals
     )
 
+
 @views.route('/delete-meal-plan/<int:meal_plan_id>', methods=['POST'])
 @login_required
 def delete_meal_plan(meal_plan_id):
@@ -547,6 +559,7 @@ def delete_meal_plan(meal_plan_id):
         flash(f'Error deleting meal plan: {e}', 'error')
 
     return redirect(url_for('views.home')+'#meal-plans')
+
 
 # ----------- Profile Page Routing -----------
 @views.route('/profile', methods=['GET', 'POST'])
@@ -628,6 +641,7 @@ def profile_page():
     return render_template("profile.html", user=updated_user,
                            profile_image_data = profile_image_data)
 
+
 @views.route('/delete-account', methods=['POST'])
 @login_required
 def delete_account():
@@ -641,3 +655,4 @@ def delete_account():
     except Exception as e:
         flash(f"Something went wrong: {str(e)}", category='error')
         return redirect(url_for('views.profile_page'))
+
