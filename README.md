@@ -22,7 +22,7 @@ This flask based application allows different users to create, update, access an
 - [Getting Started](#getting-started)  
   - [Prerequisites](#prerequisites)  
   - [Installation and Running](#installation-and-running)
-- [Notes for Professor Johnson](#notes-for-professor-johnson)
+- [Notes for Professor](#notes-for-professor)
 - [Usage](#usage)
 - [Citation](#citation)  
 - [License](#license) 
