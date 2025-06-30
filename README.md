@@ -157,7 +157,7 @@ API Endpoint documentation can be found in the root directory under API_ENDPOINT
 
 ---
 
-## Notes for Professor Johnson
+## Notes for Professor
 
 ---
 
